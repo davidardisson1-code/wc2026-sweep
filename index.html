@@ -1223,8 +1223,11 @@ function createLeague(){
   const pin=(document.getElementById('new-league-pin')?.value||'').trim().toUpperCase();
   if(!pin||pin.length<3){alert('Please enter a league PIN of at least 3 characters.');return;}
   S.leaguePin=pin;
-  // Store in Supabase so joiners can validate
-  if(sb){sb.from('settings').upsert({key:'league_pin',value:pin}).then(()=>{});}
+  S.registrations=[];
+  if(sb){
+    sb.from('settings').upsert({key:'league_pin',value:pin}).then(()=>{});
+    sb.from('settings').upsert({key:'registrations',value:'[]'}).then(()=>{});
+  }
   sv();
   S.onboardScreen='waiting-admin';sv();render();
 }
