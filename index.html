@@ -700,15 +700,17 @@ async function initSupabase(){
     }
     // Realtime: update waiting rooms when registrations change
     sb.channel('settings-live')
-      .on('postgres_changes',{event:'*',schema:'public',table:'settings'},async()=>{
-        const{data}=await sb.from('settings').select('*').eq('key','registrations').single();
-        if(data){
-          try{
-            const regs=JSON.parse(data.value);
-            if(regs)S.registrations=regs;
-            sv();
-            if(S.phase==='setup'&&(S.onboardScreen==='waiting'||S.onboardScreen==='waiting-admin'))render();
-          }catch(e){}
+      .on('postgres_changes',{event:'*',schema:'public',table:'settings'},async(payload)=>{
+        if(payload.new?.key==='registrations'||payload.old?.key==='registrations'){
+          if(payload.eventType==='DELETE'){
+            S.registrations=[];sv();
+          } else {
+            try{
+              const regs=JSON.parse(payload.new?.value||'[]');
+              if(Array.isArray(regs)){S.registrations=regs;sv();}
+            }catch(e){}
+          }
+          if(S.phase==='setup'&&(S.onboardScreen==='waiting'||S.onboardScreen==='waiting-admin'))render();
         }
       }).subscribe();
     await syncMatches();
@@ -1198,15 +1200,25 @@ async function selfRegister(){
   const team=(document.getElementById('reg-team')?.value||'').trim();
   const pin=(document.getElementById('reg-pin')?.value||'').trim();
   if(!name||!team||!pin||pin.length<4){alert('Please fill in all fields and use a 4-digit PIN.');return;}
-  if((S.registrations||[]).some(r=>r.name.toLowerCase()===name.toLowerCase())){
+  // Always fetch fresh registrations from Supabase
+  let currentRegs=[];
+  if(sb){
+    try{
+      const{data}=await sb.from('settings').select('value').eq('key','registrations').single();
+      if(data?.value)currentRegs=JSON.parse(data.value)||[];
+    }catch(e){currentRegs=S.registrations||[];}
+  } else {
+    currentRegs=S.registrations||[];
+  }
+  if(currentRegs.some(r=>r.name.toLowerCase()===name.toLowerCase())){
     alert(`${name} is already registered. If that's you, go back and log in with your PIN.`);return;
   }
   const reg={name,teamName:team,pin};
-  S.registrations=[...(S.registrations||[]),reg];
-  // Sync to Supabase so admin sees it live
+  const newRegs=[...currentRegs,reg];
+  S.registrations=newRegs;
   if(sb){
     try{
-      await sb.from('settings').upsert({key:'registrations',value:JSON.stringify(S.registrations)});
+      await sb.from('settings').upsert({key:'registrations',value:JSON.stringify(newRegs)});
     }catch(e){}
   }
   sv();
@@ -1226,7 +1238,7 @@ function createLeague(){
   S.registrations=[];
   if(sb){
     sb.from('settings').upsert({key:'league_pin',value:pin}).then(()=>{});
-    sb.from('settings').upsert({key:'registrations',value:'[]'}).then(()=>{});
+    sb.from('settings').delete().eq('key','registrations').then(()=>{});
   }
   sv();
   S.onboardScreen='waiting-admin';sv();render();
