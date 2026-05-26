@@ -243,6 +243,8 @@ function init(){
         matches:d.matches||[],predictions:d.predictions||{}});
     }
   }catch(e){}
+  // Always start at home screen in setup phase
+  if(S.phase==='setup') S.onboardScreen='home';
   // Reapply theme on refresh if logged in
   if(S.loggedIn!=null&&S.players?.[S.loggedIn]?.theme){
     applyTheme(S.players[S.loggedIn].theme);
