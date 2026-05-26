@@ -692,7 +692,7 @@ async function initSupabase(){
         if(row.key==='registrations'){
           try{
             const regs=JSON.parse(row.value);
-            if(regs&&regs.length>S.registrations.length)S.registrations=regs;
+            if(Array.isArray(regs))S.registrations=regs;
           }catch(e){}
         }
       });
