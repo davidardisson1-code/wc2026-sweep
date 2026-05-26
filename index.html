@@ -1166,11 +1166,19 @@ function backBtn(to){
   return `<button onclick="S.onboardScreen='${to}';sv();render()" style="background:none;border:none;color:var(--th-muted);font-family:'Oswald',sans-serif;font-size:13px;cursor:pointer;letter-spacing:1px;margin-bottom:18px;padding:0;display:flex;align-items:center;gap:6px">← Back</button>`;
 }
 
-function validateLeaguePin(){
+async function validateLeaguePin(){
   const pin=(document.getElementById('lpin')?.value||'').trim().toUpperCase();
   if(!pin){alert('Please enter a league PIN.');return;}
-  if(!S.leaguePin){alert('No league has been created yet. Ask your organiser.');return;}
-  if(pin!==S.leaguePin.toUpperCase()){alert('League PIN not recognised. Check with your organiser.');return;}
+  // Check local state first, then Supabase
+  let leaguePin=S.leaguePin?.toUpperCase();
+  if(!leaguePin&&sb){
+    try{
+      const{data}=await sb.from('settings').select('value').eq('key','league_pin').single();
+      if(data?.value){leaguePin=data.value.toUpperCase();S.leaguePin=data.value;sv();}
+    }catch(e){}
+  }
+  if(!leaguePin){alert('No league has been created yet. Ask your organiser.');return;}
+  if(pin!==leaguePin){alert('League PIN not recognised. Check with your organiser.');return;}
   S.onboardScreen='register';sv();render();
 }
 
