@@ -997,6 +997,7 @@ function renderSetup(root){
         <label class="lbl">League PIN</label>
         <input type="text" id="lpin" placeholder="Enter league PIN" style="letter-spacing:6px;text-align:center;font-size:22px;font-family:'Anton',Impact,sans-serif;margin-bottom:14px;text-transform:uppercase" onkeydown="if(event.key==='Enter')validateLeaguePin()">
         <button class="btn-gold" onclick="validateLeaguePin()">Continue →</button>
+        <div id="lpin-status" style="font-family:'Oswald',sans-serif;font-size:12px;color:var(--th-muted);text-align:center;margin-top:10px;min-height:18px"></div>
       </div></div>
     </div>`;
     return;
@@ -1168,17 +1169,27 @@ function backBtn(to){
 
 async function validateLeaguePin(){
   const pin=(document.getElementById('lpin')?.value||'').trim().toUpperCase();
-  if(!pin){alert('Please enter a league PIN.');return;}
-  // Check local state first, then Supabase
-  let leaguePin=S.leaguePin?.toUpperCase();
-  if(!leaguePin&&sb){
+  const status=document.getElementById('lpin-status');
+  if(!pin){if(status)status.textContent='Please enter a PIN.';return;}
+  if(status)status.textContent='Checking...';
+  // Always check Supabase directly — most reliable
+  if(sb){
     try{
-      const{data}=await sb.from('settings').select('value').eq('key','league_pin').single();
-      if(data?.value){leaguePin=data.value.toUpperCase();S.leaguePin=data.value;sv();}
-    }catch(e){}
+      const{data,error}=await sb.from('settings').select('value').eq('key','league_pin').single();
+      if(data?.value&&pin===data.value.toUpperCase()){
+        S.leaguePin=data.value;sv();
+        S.onboardScreen='register';sv();render();return;
+      }
+      if(status)status.textContent='PIN not recognised. Check with your organiser.';
+      return;
+    }catch(e){
+      if(status)status.textContent='Connection error. Try again.';
+      return;
+    }
   }
-  if(!leaguePin){alert('No league has been created yet. Ask your organiser.');return;}
-  if(pin!==leaguePin){alert('League PIN not recognised. Check with your organiser.');return;}
+  // Fallback to local state
+  if(!S.leaguePin){if(status)status.textContent='No league found. Try again shortly.';return;}
+  if(pin!==S.leaguePin.toUpperCase()){if(status)status.textContent='PIN not recognised.';return;}
   S.onboardScreen='register';sv();render();
 }
 
