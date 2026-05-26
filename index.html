@@ -489,6 +489,27 @@ function tryLogin(){
   if(!sel||!pin)return;
   login(+sel.value,pin.value);
 }
+function copyLeaguePin(){
+  if(!S.leaguePin){alert('No league PIN set.');return;}
+  navigator.clipboard?.writeText(S.leaguePin).then(()=>alert(`Copied: ${S.leaguePin}`)).catch(()=>alert(`League PIN: ${S.leaguePin}`));
+}
+function clearLeague(){
+  if(!confirm('Clear all registrations? This cannot be undone.'))return;
+  S.registrations=[];
+  if(sb)sb.from('settings').delete().eq('key','registrations').then(()=>{});
+  sv();render();
+}
+function newLeague(){
+  const pin=prompt('Enter new league PIN:');
+  if(!pin)return;
+  S.leaguePin=pin.toUpperCase();
+  S.registrations=[];
+  if(sb){
+    sb.from('settings').upsert({key:'league_pin',value:S.leaguePin}).then(()=>{});
+    sb.from('settings').delete().eq('key','registrations').then(()=>{});
+  }
+  sv();render();
+}
 function adminLogin(){
   const pin=prompt('Enter admin PIN:');
   if(!pin)return;
@@ -1647,7 +1668,31 @@ function renderRules(){
     admin?`<div style="display:flex;align-items:center;gap:4px"><input type="number" min="0" max="20" class="pts" id="rh${m.id}" placeholder="H" style="width:44px"><span style="color:#5a7ab4">-</span><input type="number" min="0" max="20" class="pts" id="ra${m.id}" placeholder="A" style="width:44px"><button class="btn-sm" onclick="enterResult('${m.id}')">Enter</button></div>`:`<span style="font-family:'Oswald',sans-serif;font-size:12px;color:var(--th-secondary)">Upcoming</span>`;
     return`<div style="padding:10px 0;border-bottom:1px solid rgba(30,58,128,.3);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><div><div style="font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;color:var(--th-text)">${m.homeF} ${esc(m.home)} vs ${esc(m.away)} ${m.awayF}</div><div style="font-size:11px;color:var(--th-secondary);letter-spacing:1px;font-family:'Oswald',sans-serif;margin-top:2px">${ko}</div></div><div>${resultHtml}</div></div>`;
   }).join(''):`<p style="font-family:'Oswald',sans-serif;font-size:13px;color:var(--th-secondary);padding:12px 0">Fixtures loading from API...</p>`;
+  const leagueCard=admin?`<div class="mcard"><div class="card-head">🏟️ League Management</div><div class="card-body">
+    <div style="margin-bottom:14px">
+      <label class="lbl">Current League PIN</label>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-family:'Anton',Impact,sans-serif;font-size:22px;letter-spacing:4px;color:#f5c518">${S.leaguePin||'None'}</span>
+        <button class="btn-sm" onclick="copyLeaguePin()" style="font-size:11px">Copy</button>
+      </div>
+    </div>
+    <div style="margin-bottom:14px">
+      <label class="lbl">Registrations (${(S.registrations||[]).length})</label>
+      ${(S.registrations||[]).length?`<div style="display:flex;flex-direction:column;gap:6px;margin-top:6px">${(S.registrations||[]).map((r,i)=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:rgba(0,0,0,.2);border-radius:6px">
+        <div>
+          <div style="font-family:'Anton',Impact,sans-serif;font-size:13px;color:var(--th-text)">${esc(r.name)}</div>
+          <div style="font-family:'Oswald',sans-serif;font-size:11px;color:var(--th-secondary)">${esc(r.teamName)}</div>
+        </div>
+        <button onclick="removeReg(${i})" style="background:none;border:1px solid rgba(248,113,113,.4);color:#f87171;border-radius:4px;padding:4px 10px;font-family:'Oswald',sans-serif;font-size:11px;cursor:pointer;letter-spacing:1px">Remove</button>
+      </div>`).join('')}</div>`:`<p style="font-family:'Oswald',sans-serif;font-size:13px;color:var(--th-secondary);padding:8px 0">No registrations yet.</p>`}
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-sm" onclick="clearLeague()" style="background:linear-gradient(180deg,#ff6b6b,#dc2626 60%,#b91c1c);color:#fff;box-shadow:0 3px 0 #7f1d1d;font-size:12px">🗑️ Clear All Registrations</button>
+      <button class="btn-sm" onclick="newLeague()" style="font-size:12px">⚙️ New League PIN</button>
+    </div>
+  </div></div>`:'';
   return `
+  ${leagueCard}
   ${roMsg}
   <div class="mcard"><div class="card-head">⚽ Match Points by Tier</div><div style="padding:0 16px">${tr('A','★★★ Tier A — Elite')}${tr('B','★★ Tier B — Mid')}${tr('C','★ Tier C — Underdog')}</div></div>
   <div class="mcard"><div class="card-head">⚽ Scorer Picks</div><div class="card-body" style="display:flex;gap:16px;flex-wrap:wrap;align-items:center">
