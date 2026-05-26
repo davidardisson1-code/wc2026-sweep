@@ -995,18 +995,27 @@ function renderSetup(root){
 
   if(screen==='home'){
     root.innerHTML=`
-    <div style="text-align:center;padding:32px 0 20px">
+    <div style="text-align:center;padding:28px 0 16px">
       <div style="font-family:'Anton',Impact,sans-serif;font-size:44px;line-height:1;background:linear-gradient(180deg,var(--th-text) 30%,#f5c518 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:2px;margin-bottom:6px">WC 2026</div>
       <div style="font-family:'Anton',Impact,sans-serif;font-size:20px;letter-spacing:6px;color:#f5c518;margin-bottom:4px">SWEEPSTAKE</div>
       <div style="font-family:'Oswald',sans-serif;font-size:13px;color:var(--th-secondary);letter-spacing:3px">11 JUNE — 19 JULY 2026</div>
     </div>
-    <div style="display:flex;flex-direction:column;gap:10px;max-width:340px;margin:0 auto;padding:0 8px 40px">
-      <button class="btn-gold" onclick="S.onboardScreen='join';sv();render()">🌍 Join a League</button>
-      <button class="btn-gold" onclick="S.onboardScreen='login';sv();render()" style="background:linear-gradient(180deg,#3a6fd8,#1a4aa8 60%,#0f2e7a);color:#fff;box-shadow:0 4px 0 #0a1e52,0 6px 16px rgba(30,80,200,.3)">🔑 Log In with PIN</button>
-      <div style="border-top:1px solid var(--th-border-soft);margin:4px 0"></div>
-      <button class="btn-ghost" onclick="S.onboardScreen='admin-gate-create';sv();render()" style="padding:11px;font-size:14px;letter-spacing:1px">⚙️ Create a League</button>
-      <button class="btn-ghost" onclick="S.onboardScreen='admin-gate-draw';sv();render()" style="padding:11px;font-size:14px;letter-spacing:1px">🎲 Start a Draw</button>
+    <div style="max-width:380px;margin:0 auto;padding:0 8px 20px">
+      <div class="mcard" style="margin-bottom:12px">
+        <div class="card-head">🏟️ Leagues</div>
+        <div id="league-list" style="padding:10px 14px">
+          <p style="font-family:'Oswald',sans-serif;font-size:13px;color:var(--th-secondary)">Loading...</p>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <button class="btn-gold" onclick="S.onboardScreen='join';sv();render()">🌍 Join a League</button>
+        <button class="btn-gold" onclick="S.onboardScreen='login';sv();render()" style="background:linear-gradient(180deg,#3a6fd8,#1a4aa8 60%,#0f2e7a);color:#fff;box-shadow:0 4px 0 #0a1e52,0 6px 16px rgba(30,80,200,.3)">🔑 Log In with PIN</button>
+        <div style="border-top:1px solid var(--th-border-soft);margin:4px 0"></div>
+        <button class="btn-ghost" onclick="S.onboardScreen='admin-gate-create';sv();render()" style="padding:11px;font-size:14px;letter-spacing:1px">⚙️ Create a League</button>
+        <button class="btn-ghost" onclick="S.onboardScreen='admin-gate-draw';sv();render()" style="padding:11px;font-size:14px;letter-spacing:1px">🎲 Start a Draw</button>
+      </div>
     </div>`;
+    loadLeagueDirectory();
     return;
   }
 
@@ -1112,6 +1121,8 @@ function renderSetup(root){
       ${backBtn('home')}
       <div class="mcard"><div class="card-head">⚙️ Create Your League</div><div class="card-body">
         <p style="font-family:'Oswald',sans-serif;font-size:13px;color:var(--th-muted);margin-bottom:16px;line-height:1.6">Set a league PIN to share with your group. Players enter this to self-register from their own devices.</p>
+        <label class="lbl">League Name</label>
+        <input type="text" id="new-league-name" placeholder="e.g. David's WC2026 Sweepstake" style="margin-bottom:12px">
         <label class="lbl">League PIN <span style="color:var(--th-secondary)">(share this with your group)</span></label>
         <input type="text" maxlength="8" id="new-league-pin" value="${esc(S.leaguePin)}" placeholder="e.g. WC2026" style="letter-spacing:4px;text-align:center;font-size:20px;font-family:'Anton',Impact,sans-serif;margin-bottom:14px;text-transform:uppercase">
         <button class="btn-gold" onclick="createLeague()" style="margin-bottom:10px">Create League →</button>
@@ -1252,12 +1263,59 @@ function removeReg(idx){
   sv();render();
 }
 
+async function loadLeagueDirectory(){
+  const el=document.getElementById('league-list');
+  if(!el)return;
+  if(!sb){el.innerHTML=`<p style="font-family:'Oswald',sans-serif;font-size:13px;color:var(--th-secondary)">Connect to see leagues.</p>`;return;}
+  try{
+    const{data,error}=await sb.from('leagues').select('*').order('created_at',{ascending:false});
+    if(error||!data||!data.length){
+      el.innerHTML=`<p style="font-family:'Oswald',sans-serif;font-size:13px;color:var(--th-secondary);padding:6px 0">No leagues yet. Create one to get started.</p>`;
+      return;
+    }
+    el.innerHTML=data.map((lg,i)=>`
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;${i>0?'border-top:1px solid var(--th-border-soft)':''}">
+        <div>
+          <div style="font-family:'Anton',Impact,sans-serif;font-size:14px;color:#f5c518;letter-spacing:1px">${esc(lg.name||'Unnamed League')}</div>
+          <div style="font-family:'Oswald',sans-serif;font-size:11px;color:var(--th-secondary);letter-spacing:2px;margin-top:2px">PIN: ${esc(lg.pin)} · ${new Date(lg.created_at).toLocaleDateString('en-GB')}</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button onclick="useLeague('${esc(lg.pin)}')" class="btn-sm" style="font-size:11px">Load</button>
+          <button onclick="deleteLeague(${lg.id},'${esc(lg.pin)}')" class="btn-sm btn-sm-red" style="font-size:11px">Delete</button>
+        </div>
+      </div>`).join('');
+  }catch(e){
+    el.innerHTML=`<p style="font-family:'Oswald',sans-serif;font-size:13px;color:#f87171">Error loading leagues.</p>`;
+  }
+}
+
+async function deleteLeague(id,pin){
+  if(!confirm(`Delete league with PIN ${pin}? This cannot be undone.`))return;
+  if(!sb)return;
+  try{
+    await sb.from('leagues').delete().eq('id',id);
+    await sb.from('settings').delete().eq('key','league_pin');
+    await sb.from('settings').delete().eq('key','registrations');
+    // Reload directory
+    loadLeagueDirectory();
+  }catch(e){alert('Delete failed.');}
+}
+
+function useLeague(pin){
+  S.leaguePin=pin;sv();
+  S.onboardScreen='waiting-admin';sv();render();
+}
+
 function createLeague(){
-  const pin=(document.getElementById('new-league-pin')?.value||'').trim().toUpperCase();
+  const pinEl=document.getElementById('new-league-pin');
+  const nameEl=document.getElementById('new-league-name');
+  const pin=(pinEl?.value||'').trim().toUpperCase();
+  const name=(nameEl?.value||'').trim()||`League ${pin}`;
   if(!pin||pin.length<3){alert('Please enter a league PIN of at least 3 characters.');return;}
   S.leaguePin=pin;
   S.registrations=[];
   if(sb){
+    sb.from('leagues').upsert({name,pin},{onConflict:'pin'}).then(()=>{});
     sb.from('settings').upsert({key:'league_pin',value:pin}).then(()=>{});
     sb.from('settings').delete().eq('key','registrations').then(()=>{});
   }
