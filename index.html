@@ -615,8 +615,7 @@ async function reqNotif(){
   render();
 }
 function fireNotif(title,body){
-  if(Notification.permission!=='granted')return;
-  try{new Notification(title,{body,icon:''});}catch(e){}
+  try{if(typeof Notification==='undefined'||Notification.permission!=='granted')return;new Notification(title,{body,icon:''});}catch(e){}
 }
 function notifWin(m){
   if(!S.players)return;
@@ -862,21 +861,21 @@ async function pushPicksSB(id){
 
 // ===== 3-HOUR PREDICTION REMINDER =====
 function checkUpcomingPredReminders(){
-  if(Notification.permission!=='granted'||!S.players||!S.matches.length)return;
-  const now=Date.now();
-  const THREE_HRS=3*60*60*1000;
-  S.players.forEach(p=>{
-    S.matches.forEach(m=>{
-      if(!m.kickoff||m.hScore!=null)return;
-      const ko=new Date(m.kickoff).getTime();
-      if(ko>now&&ko-now<=THREE_HRS){
-        const pred=S.predictions[p.id]?.[m.id];
-        if(!pred){
-          fireNotif(`⏰ Predict before kick-off!`,`${p.name}: ${m.home} vs ${m.away} kicks off soon — no prediction yet!`);
+  try{
+    if(typeof Notification==='undefined'||Notification.permission!=='granted'||!S.players||!S.matches.length)return;
+    const now=Date.now();
+    const THREE_HRS=3*60*60*1000;
+    S.players.forEach(p=>{
+      S.matches.forEach(m=>{
+        if(!m.kickoff||m.hScore!=null)return;
+        const ko=new Date(m.kickoff).getTime();
+        if(ko>now&&ko-now<=THREE_HRS){
+          const pred=S.predictions[p.id]?.[m.id];
+          if(!pred)fireNotif(`⏰ Predict before kick-off!`,`${p.name}: ${m.home} vs ${m.away} kicks off soon — no prediction yet!`);
         }
-      }
+      });
     });
-  });
+  }catch(e){}
 }
 setInterval(checkUpcomingPredReminders,5*60*1000); // check every 5 mins
 
@@ -1583,7 +1582,8 @@ function renderRules(){
     <div class="rpts"><label style="font-size:11px;color:#94afd4">Draw</label>${ro?val(r[tier].D):`<input type="number" class="pts" value="${r[tier].D}" onchange="upRule('${tier}.D',this.value)" min="0" max="20">`}</div>
     <div class="rpts"><label style="font-size:11px;color:#94afd4">Loss</label>${ro?val(r[tier].L):`<input type="number" class="pts" value="${r[tier].L}" onchange="upRule('${tier}.L',this.value)" min="0" max="20">`}</div>
   </div>`;
-  const notifStatus=Notification.permission==='granted'?'<span style="color:#4ade80">✓ Notifications active</span>':Notification.permission==='denied'?'<span style="color:#f87171">✗ Blocked — enable in browser settings</span>':'<span style="color:var(--th-muted)">Not yet enabled</span>';
+  const notifPerm=typeof Notification!=='undefined'?Notification.permission:'denied';
+  const notifStatus=notifPerm==='granted'?'<span style="color:#4ade80">✓ Notifications active</span>':notifPerm==='denied'?'<span style="color:#f87171">✗ Blocked — enable in browser settings</span>':'<span style="color:var(--th-muted)">Not yet enabled</span>';
   const fixtureList=S.matches.length?S.matches.slice().sort((a,b)=>new Date(a.kickoff)-new Date(b.kickoff)).map(m=>{
     const ko=m.kickoff?new Date(m.kickoff).toLocaleString('en-GB',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'Europe/London'}):'TBC';
     const resultHtml=m.hScore!=null?`<span style="font-family:'Anton',Impact,sans-serif;font-size:13px;color:#f5c518">${m.hScore} - ${m.aScore}</span>`:
@@ -1601,7 +1601,7 @@ function renderRules(){
   ${admin?`<button id="srb" class="btn-gold" onclick="saveRules()" style="margin-bottom:20px">Save Rules</button>`:''}
   <div class="mcard"><div class="card-head">🔔 Notifications</div><div class="card-body">
     <p style="font-family:'Oswald',sans-serif;font-size:13px;color:var(--th-muted);margin-bottom:10px;line-height:1.5">Enable to get alerts 3 hours before kick-off if you haven't predicted, and when scorers find the net.</p>
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px"><div style="font-family:'Oswald',sans-serif;font-size:13px">${notifStatus}</div>${Notification.permission!=='granted'?`<button class="btn-sm" onclick="reqNotif()">Enable Notifications</button>`:''}</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px"><div style="font-family:'Oswald',sans-serif;font-size:13px">${notifStatus}</div>${notifPerm!=='granted'?`<button class="btn-sm" onclick="reqNotif()">Enable Notifications</button>`:''}</div>
   </div></div>
   <div class="mcard"><div class="card-head">🗓️ Fixtures <span style="font-size:11px;color:var(--th-secondary);font-weight:400;font-family:'Oswald',sans-serif;letter-spacing:0">${S.matches.length} loaded via API</span></div>
     <div style="padding:0 16px;max-height:400px;overflow-y:auto">${fixtureList}</div>
