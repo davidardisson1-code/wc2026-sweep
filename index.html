@@ -418,12 +418,17 @@ function reset(){
   if(S.phase==='done'&&!isAdmin()){alert('Only the admin can reset the draw.');return;}
   if(!confirm('Reset everything? A backup will be saved first.'))return;
   try{localStorage.setItem('wc26x_backup',localStorage.getItem('wc26x'));}catch(e){}
-  // Wipe all localStorage keys for this app
   try{
     localStorage.removeItem('wc26x');
     localStorage.removeItem('wc26x_unread');
   }catch(e){}
-  // Restore factory state
+  // Wipe Supabase too
+  if(sb){
+    sb.from('players').delete().neq('id',-1).then(()=>{});
+    sb.from('predictions').delete().neq('id',-1).then(()=>{});
+    sb.from('messages').delete().neq('id',-1).then(()=>{});
+    sb.from('settings').delete().neq('key','').then(()=>{});
+  }
   Object.assign(S,{
     phase:'setup',onboardScreen:'home',
     names:Array.from({length:8},(_,i)=>`Player ${i+1}`),
@@ -706,8 +711,10 @@ async function initSupabase(){
       }).subscribe();
     await syncMatches();
     await syncGoals();
-    await loadPlayersFromSB();
-    await loadPredictionsFromSB();
+    if(S.phase==='done'){
+      await loadPlayersFromSB();
+      await loadPredictionsFromSB();
+    }
     subscribeRealtime();
     initChat();
   }catch(e){console.warn('Supabase init failed, running offline',e);}
