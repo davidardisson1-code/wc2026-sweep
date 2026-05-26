@@ -1000,22 +1000,13 @@ function renderSetup(root){
       <div style="font-family:'Anton',Impact,sans-serif;font-size:20px;letter-spacing:6px;color:#f5c518;margin-bottom:4px">SWEEPSTAKE</div>
       <div style="font-family:'Oswald',sans-serif;font-size:13px;color:var(--th-secondary);letter-spacing:3px">11 JUNE — 19 JULY 2026</div>
     </div>
-    <div style="max-width:380px;margin:0 auto;padding:0 8px 20px">
-      <div class="mcard" style="margin-bottom:12px">
-        <div class="card-head">🏟️ Leagues</div>
-        <div id="league-list" style="padding:10px 14px">
-          <p style="font-family:'Oswald',sans-serif;font-size:13px;color:var(--th-secondary)">Loading...</p>
-        </div>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:10px">
-        <button class="btn-gold" onclick="S.onboardScreen='join';sv();render()">🌍 Join a League</button>
-        <button class="btn-gold" onclick="S.onboardScreen='login';sv();render()" style="background:linear-gradient(180deg,#3a6fd8,#1a4aa8 60%,#0f2e7a);color:#fff;box-shadow:0 4px 0 #0a1e52,0 6px 16px rgba(30,80,200,.3)">🔑 Log In with PIN</button>
-        <div style="border-top:1px solid var(--th-border-soft);margin:4px 0"></div>
-        <button class="btn-ghost" onclick="S.onboardScreen='admin-gate-create';sv();render()" style="padding:11px;font-size:14px;letter-spacing:1px">⚙️ Create a League</button>
-        <button class="btn-ghost" onclick="S.onboardScreen='admin-gate-draw';sv();render()" style="padding:11px;font-size:14px;letter-spacing:1px">🎲 Start a Draw</button>
-      </div>
+    <div style="display:flex;flex-direction:column;gap:10px;max-width:340px;margin:0 auto;padding:0 8px 40px">
+      <button class="btn-gold" onclick="S.onboardScreen='join';sv();render()">🌍 Join a League</button>
+      <button class="btn-gold" onclick="S.onboardScreen='login';sv();render()" style="background:linear-gradient(180deg,#3a6fd8,#1a4aa8 60%,#0f2e7a);color:#fff;box-shadow:0 4px 0 #0a1e52,0 6px 16px rgba(30,80,200,.3)">🔑 Log In with PIN</button>
+      <div style="border-top:1px solid var(--th-border-soft);margin:4px 0"></div>
+      <button class="btn-ghost" onclick="S.onboardScreen='admin-gate-create';sv();render()" style="padding:11px;font-size:14px;letter-spacing:1px">⚙️ Create a League</button>
+      <button class="btn-ghost" onclick="S.onboardScreen='admin-gate-draw';sv();render()" style="padding:11px;font-size:14px;letter-spacing:1px">🎲 Start a Draw</button>
     </div>`;
-    loadLeagueDirectory();
     return;
   }
 
@@ -1117,18 +1108,24 @@ function renderSetup(root){
   // ── CREATE LEAGUE (admin) ──────────────────────────────
   if(screen==='create'){
     root.innerHTML=`
-    <div style="max-width:380px;margin:0 auto;padding:20px 8px">
+    <div style="max-width:420px;margin:0 auto;padding:20px 8px">
       ${backBtn('home')}
-      <div class="mcard"><div class="card-head">⚙️ Create Your League</div><div class="card-body">
-        <p style="font-family:'Oswald',sans-serif;font-size:13px;color:var(--th-muted);margin-bottom:16px;line-height:1.6">Set a league PIN to share with your group. Players enter this to self-register from their own devices.</p>
+      <div class="mcard" style="margin-bottom:12px">
+        <div class="card-head">🏟️ Your Leagues</div>
+        <div id="league-list" style="padding:10px 14px">
+          <p style="font-family:'Oswald',sans-serif;font-size:13px;color:var(--th-secondary)">Loading...</p>
+        </div>
+      </div>
+      <div class="mcard"><div class="card-head">➕ Create New League</div><div class="card-body">
         <label class="lbl">League Name</label>
         <input type="text" id="new-league-name" placeholder="e.g. David's WC2026 Sweepstake" style="margin-bottom:12px">
-        <label class="lbl">League PIN <span style="color:var(--th-secondary)">(share this with your group)</span></label>
+        <label class="lbl">League PIN <span style="color:var(--th-secondary)">(share with your group)</span></label>
         <input type="text" maxlength="8" id="new-league-pin" value="${esc(S.leaguePin)}" placeholder="e.g. WC2026" style="letter-spacing:4px;text-align:center;font-size:20px;font-family:'Anton',Impact,sans-serif;margin-bottom:14px;text-transform:uppercase">
         <button class="btn-gold" onclick="createLeague()" style="margin-bottom:10px">Create League →</button>
-        <button class="btn-ghost" onclick="S.onboardScreen='waiting-admin';sv();render()" style="width:100%;padding:10px;font-size:13px;letter-spacing:1px">👥 View Waiting Room</button>
+        <button class="btn-ghost" onclick="S.onboardScreen='waiting-admin';sv();render()" style="width:100%;padding:10px;font-size:13px;letter-spacing:1px">👥 View Current Waiting Room</button>
       </div></div>
     </div>`;
+    loadLeagueDirectory();
     return;
   }
 
