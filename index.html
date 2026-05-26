@@ -416,11 +416,25 @@ function adv(){
 }
 function reset(){
   if(S.phase==='done'&&!isAdmin()){alert('Only the admin can reset the draw.');return;}
-  if(!confirm('Reset everything? This cannot be undone — but a backup will be saved so you can restore if needed.'))return;
-  // Save backup before wiping
+  if(!confirm('Reset everything? A backup will be saved first.'))return;
   try{localStorage.setItem('wc26x_backup',localStorage.getItem('wc26x'));}catch(e){}
-  Object.assign(S,{phase:'setup',sh:null,dr:0,dp:0,rs:'idle',clues:[],cur:null,players:null,loggedIn:null,matches:[],predictions:{}});
-  try{localStorage.removeItem('wc26x');}catch(e){}
+  // Wipe all localStorage keys for this app
+  try{
+    localStorage.removeItem('wc26x');
+    localStorage.removeItem('wc26x_unread');
+  }catch(e){}
+  // Restore factory state
+  Object.assign(S,{
+    phase:'setup',onboardScreen:'home',
+    names:Array.from({length:8},(_,i)=>`Player ${i+1}`),
+    teamNames:Array.from({length:8},(_,i)=>`Team ${i+1}`),
+    pins:Array(8).fill(''),
+    adminPin:'0260',leaguePin:'',registrations:[],
+    sh:null,dr:0,dp:0,rs:'idle',clues:[],cur:null,
+    players:null,tab:'table',loggedIn:null,
+    matches:[],predictions:{},chatUnread:{},
+    rules:{A:{W:3,D:1,L:0},B:{W:4,D:2,L:0},C:{W:5,D:2,L:0},sReg:2,sTierC:6,winner:15,custom:[]}
+  });
   render();
 }
 function restoreBackup(){
@@ -972,7 +986,7 @@ function renderSetup(root){
       <div class="mcard"><div class="card-head">🌍 Join a League</div><div class="card-body">
         <p style="font-family:'Oswald',sans-serif;font-size:13px;color:var(--th-muted);margin-bottom:16px;line-height:1.6">Your organiser will share a league PIN. Enter it below to register your place.</p>
         <label class="lbl">League PIN</label>
-        <input type="tel" id="lpin" placeholder="Enter league PIN" style="letter-spacing:6px;text-align:center;font-size:22px;font-family:'Anton',Impact,sans-serif;margin-bottom:14px" onkeydown="if(event.key==='Enter')validateLeaguePin()">
+        <input type="text" id="lpin" placeholder="Enter league PIN" style="letter-spacing:6px;text-align:center;font-size:22px;font-family:'Anton',Impact,sans-serif;margin-bottom:14px;text-transform:uppercase" onkeydown="if(event.key==='Enter')validateLeaguePin()">
         <button class="btn-gold" onclick="validateLeaguePin()">Continue →</button>
       </div></div>
     </div>`;
