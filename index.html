@@ -243,8 +243,8 @@ function init(){
         matches:d.matches||[],predictions:d.predictions||{}});
     }
   }catch(e){}
-  // Always start at home screen in setup phase
-  if(S.phase==='setup') S.onboardScreen='home';
+  // Only reset to home if we're not in an admin create/manage flow
+  if(S.phase==='setup'&&S.onboardScreen!=='create'&&S.onboardScreen!=='waiting-admin') S.onboardScreen='home';
   // Reapply theme on refresh if logged in
   if(S.loggedIn!=null&&S.players?.[S.loggedIn]?.theme){
     applyTheme(S.players[S.loggedIn].theme);
@@ -420,7 +420,10 @@ function adv(){
       picks:{reg:'',tierC:''},kit:{...DK},logo:{...DL,initials:autoInit(S.teamNames[i]||`Team ${i+1}`)},boots:'predator',bootC1:'#b00',bootC2:'#fff',matchPts:0,scorerPts:0
     }));
     S.phase='done';
-    pushPlayersToSB();
+    sv();render();
+    // Push all players to Supabase immediately — awaited so they're there before anyone refreshes
+    pushPlayersToSB().then(()=>console.log('Players saved to Supabase'));
+    return;
   }
   sv();render();
 }
@@ -928,7 +931,7 @@ async function pushPlayerSB(idx){
 
 async function pushPlayersToSB(){
   if(!sb||!S.players)return;
-  for(const p of S.players) await pushPlayerSB(p.id);
+  await Promise.all(S.players.map(p=>pushPlayerSB(p.id)));
 }
 
 // ===== 3-HOUR PREDICTION REMINDER =====
