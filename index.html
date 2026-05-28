@@ -105,7 +105,7 @@ select:focus{outline:none;border-color:#f5c518}
 </head>
 <body>
 <div class="site-header" onclick="if(S.phase==='setup'){S.onboardScreen='home';sv();render();}" style="cursor:pointer">
-  <div style="position:absolute;top:8px;right:12px;font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-secondary);letter-spacing:1px;opacity:.7">🍓 Strawberry · 28 May 15:10</div>
+  <div style="position:absolute;top:8px;right:12px;font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-secondary);letter-spacing:1px;opacity:.7">🍋 Lemon · 28 May 15:31</div>
   <div class="site-logo">Official Sweepstake Edition</div>
   <div class="site-title">World Cup 2026</div>
   <div class="site-sub">Pack Opening Event</div>
@@ -394,6 +394,10 @@ function startDraw(){
     S.teamNames=S.registrations.map(r=>r.teamName);
     S.pins=S.registrations.map(r=>r.pin);
   }
+  const filled=S.names.filter((n,i)=>n&&!n.startsWith('Player ')&&S.pins[i]&&S.pins[i].length>=4);
+  if(filled.length<2){alert('Each player needs a name and a 4-digit PIN before starting the draw.');return;}
+  const missingPins=S.names.filter((n,i)=>n&&!n.startsWith('Player ')&&(!S.pins[i]||S.pins[i].length<4));
+  if(missingPins.length>0){alert(`Missing PINs for: ${missingPins.join(', ')}. Everyone needs a 4-digit PIN.`);return;}
   S.sh={A1:shuf(TM.A1),A2:shuf(TM.A2),B:shuf(TM.B),C:shuf(TM.C)};S.dr=0;S.dp=0;S.rs='idle';S.phase='draw';sv();render();
 }
 function getTeam(){
@@ -425,10 +429,32 @@ function adv(){
     // Wait up to 3s for sb to be ready then push
     const tryPush=async()=>{
       for(let i=0;i<10;i++){
-        if(sb){await pushPlayersToSB();console.log('Players saved to Supabase');return;}
+        if(sb){
+          await pushPlayersToSB();
+          // Verify it worked
+          const{data}=await sb.from('players').select('id').limit(1);
+          if(data&&data.length>0){
+            const banner=document.createElement('div');
+            banner.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#16a34a;color:#fff;font-family:Anton,Impact,sans-serif;font-size:13px;letter-spacing:2px;padding:12px 24px;border-radius:8px;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.4)';
+            banner.textContent='✅ All players saved — everyone can now log in';
+            document.body.appendChild(banner);
+            setTimeout(()=>banner.remove(),5000);
+          } else {
+            const banner=document.createElement('div');
+            banner.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#dc2626;color:#fff;font-family:Anton,Impact,sans-serif;font-size:13px;letter-spacing:2px;padding:12px 24px;border-radius:8px;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.4);cursor:pointer';
+            banner.textContent='⚠️ Save failed — tap to retry';
+            banner.onclick=()=>{banner.remove();tryPush();};
+            document.body.appendChild(banner);
+          }
+          return;
+        }
         await new Promise(r=>setTimeout(r,300));
       }
-      console.error('pushPlayersToSB: sb never ready');
+      const banner=document.createElement('div');
+      banner.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#dc2626;color:#fff;font-family:Anton,Impact,sans-serif;font-size:13px;letter-spacing:2px;padding:12px 24px;border-radius:8px;z-index:9999;cursor:pointer';
+      banner.textContent='⚠️ Could not connect — tap to retry';
+      banner.onclick=()=>{banner.remove();tryPush();};
+      document.body.appendChild(banner);
     };
     tryPush();
   }
