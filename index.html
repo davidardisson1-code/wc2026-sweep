@@ -105,7 +105,7 @@ select:focus{outline:none;border-color:#f5c518}
 </head>
 <body>
 <div class="site-header" onclick="if(S.phase==='setup'){S.onboardScreen='home';sv();render();}" style="cursor:pointer">
-  <div style="position:absolute;top:8px;right:12px;font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-secondary);letter-spacing:1px;opacity:.7">🍇 Grape · 28 May 14:52</div>
+  <div style="position:absolute;top:8px;right:12px;font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-secondary);letter-spacing:1px;opacity:.7">🍓 Strawberry · 28 May 15:10</div>
   <div class="site-logo">Official Sweepstake Edition</div>
   <div class="site-title">World Cup 2026</div>
   <div class="site-sub">Pack Opening Event</div>
@@ -422,9 +422,15 @@ function adv(){
     }));
     S.phase='done';
     sv();render();
-    // Push all players to Supabase immediately — awaited so they're there before anyone refreshes
-    pushPlayersToSB().then(()=>console.log('Players saved to Supabase'));
-    return;
+    // Wait up to 3s for sb to be ready then push
+    const tryPush=async()=>{
+      for(let i=0;i<10;i++){
+        if(sb){await pushPlayersToSB();console.log('Players saved to Supabase');return;}
+        await new Promise(r=>setTimeout(r,300));
+      }
+      console.error('pushPlayersToSB: sb never ready');
+    };
+    tryPush();
   }
   sv();render();
 }
