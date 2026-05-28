@@ -105,7 +105,7 @@ select:focus{outline:none;border-color:#f5c518}
 </head>
 <body>
 <div class="site-header" onclick="if(S.phase==='setup'){S.onboardScreen='home';sv();render();}" style="cursor:pointer">
-  <div style="position:absolute;top:8px;right:12px;font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-secondary);letter-spacing:1px;opacity:.7">🍋 Lemon · 28 May 15:31</div>
+  <div style="position:absolute;top:8px;right:12px;font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-secondary);letter-spacing:1px;opacity:.7">🥭 Mango · 28 May 15:41</div>
   <div class="site-logo">Official Sweepstake Edition</div>
   <div class="site-title">World Cup 2026</div>
   <div class="site-sub">Pack Opening Event</div>
@@ -785,8 +785,9 @@ async function initSupabase(){
       }).subscribe();
     await syncMatches();
     await syncGoals();
+    // Always try to load players — handles new devices where phase='setup' but draw is done
+    await loadPlayersFromSB();
     if(S.phase==='done'){
-      await loadPlayersFromSB();
       await loadPredictionsFromSB();
     }
     subscribeRealtime();
@@ -903,6 +904,9 @@ async function loadPlayersFromSB(){
       // New device — bootstrap entire player list from Supabase
       S.players=data.map(hydrate);
       S.phase='done';
+      sv();render();
+      // Also load predictions now we have players
+      await loadPredictionsFromSB();
     } else {
       // Merge — update existing players with latest Supabase data
       S.players=S.players.map(p=>{
