@@ -225,7 +225,7 @@ function shuf(a){a=[...a];for(let i=a.length-1;i>0;i--){const j=0|Math.random()*
 function autoInit(name){const w=(name||'').trim().split(/\s+/).filter(Boolean);return w.length>1?w.slice(0,2).map(x=>x[0]).join('').toUpperCase():(name||'??').substring(0,2).toUpperCase();}
 
 // ===== SAVE / LOAD =====
-function sv(){try{localStorage.setItem('wc26x',JSON.stringify({phase:S.phase,onboardScreen:S.onboardScreen,names:S.names,teamNames:S.teamNames,pins:S.pins,adminPin:S.adminPin,leaguePin:S.leaguePin,registrations:S.registrations||[],sh:S.sh,dr:S.dr,dp:S.dp,players:S.players,rules:S.rules,loggedIn:S.loggedIn,matches:S.matches,predictions:S.predictions,tab:S.tab}));}catch(e){}}
+function sv(){try{localStorage.setItem('wc26x',JSON.stringify({phase:S.phase,onboardScreen:S.onboardScreen,names:S.names,teamNames:S.teamNames,pins:S.pins,adminPin:S.adminPin,adminLoggedIn:S.adminLoggedIn||false,leaguePin:S.leaguePin,registrations:S.registrations||[],sh:S.sh,dr:S.dr,dp:S.dp,players:S.players,rules:S.rules,loggedIn:S.loggedIn,matches:S.matches,predictions:S.predictions,tab:S.tab}));}catch(e){}}
 function init(){
   try{
     const raw=localStorage.getItem('wc26x');
@@ -238,7 +238,7 @@ function init(){
         teamName:p.teamName||`Team ${p.id+1}`,pin:p.pin||''
       })):null;
       Object.assign(S,{phase:d.phase||'setup',onboardScreen:d.onboardScreen||'home',names:d.names||S.names,teamNames:d.teamNames||S.teamNames,
-        pins:d.pins||S.pins,adminPin:d.adminPin||'0260',leaguePin:d.leaguePin||'',registrations:d.registrations||[],sh:d.sh||null,dr:d.dr||0,dp:d.dp||0,players,
+        pins:d.pins||S.pins,adminPin:d.adminPin||'0260',adminLoggedIn:d.adminLoggedIn||false,leaguePin:d.leaguePin||'',registrations:d.registrations||[],sh:d.sh||null,dr:d.dr||0,dp:d.dp||0,players,
         rules:{...S.rules,...(d.rules||{})},loggedIn:d.loggedIn??null,tab:d.tab||'table',
         matches:d.matches||[],predictions:d.predictions||{}});
     }
@@ -249,8 +249,16 @@ function init(){
   if(S.loggedIn!=null&&S.players?.[S.loggedIn]?.theme){
     applyTheme(S.players[S.loggedIn].theme);
   }
+  // Init Supabase client immediately so it's ready for any screen
+  sb=window.supabase?.createClient(SB_URL,SB_KEY);
   render();
-  initSupabase();
+  // Bootstrap from Supabase — handles new devices and cross-device sync
+  initSupabase().then(()=>{
+    // If Supabase has players but local state thinks we're in setup, switch to done
+    if(S.phase==='setup'&&S.players&&S.players.length>0){
+      S.phase='done';sv();render();
+    }
+  });
 }
 
 // ===== KIT SVG =====
@@ -483,7 +491,7 @@ function login(idx,pin){
   if(p.theme)applyTheme(p.theme);
   sv();render();return true;
 }
-function logout(){S.loggedIn=null;applyTheme('navy');sv();render();}
+function logout(){S.loggedIn=null;S.adminLoggedIn=false;localStorage.removeItem('wc26x_mypin');applyTheme('navy');sv();render();}
 function tryLogin(){
   const sel=document.getElementById('lsel');const pin=document.getElementById('lpin');
   if(!sel||!pin)return;
@@ -514,9 +522,10 @@ function adminLogin(){
   const pin=prompt('Enter admin PIN:');
   if(!pin)return;
   if(pin!==S.adminPin){alert('Wrong admin PIN.');return;}
-  const idx=S.players.findIndex(p=>p.pin===S.adminPin);
-  if(idx>=0){S.loggedIn=idx;sv();}
-  S.tab='rules';render();
+  S.adminLoggedIn=true;
+  const idx=S.players?.findIndex(p=>p.pin===S.adminPin)??-1;
+  if(idx>=0){S.loggedIn=idx;}
+  sv();S.tab='rules';render();
 }
 
 // ===== PREDICTIONS =====
@@ -578,8 +587,12 @@ function upName(i,v){S.names[i]=v;}
 function upTeamName(i,v){S.teamNames[i]=v;}
 function upPin(i,v){S.pins[i]=v;}
 function upAdminPin(v){S.adminPin=v;}
-function isAdmin(){return S.loggedIn===null?false:S.adminPin&&S.players[S.loggedIn]?.pin===S.adminPin;}
-function upPick(id,k,v){S.players=S.players.map(p=>p.id===id?{...p,picks:{...p.picks,[k]:v}}:p);sv();pushPicksSB(id);}
+function isAdmin(){
+  if(S.adminLoggedIn)return true;
+  if(S.loggedIn===null||!S.players)return false;
+  return S.adminPin&&S.players[S.loggedIn]?.pin===S.adminPin;
+}
+function upPick(id,k,v){S.players=S.players.map(p=>p.id===id?{...p,picks:{...p.picks,[k]:v}}:p);sv();pushPlayerSB(id);}
 function upRule(k,v){const p=k.split('.');if(p.length===2)S.rules[p[0]][p[1]]=+v||0;else S.rules[k]=isNaN(+v)?v:+v||0;}
 function addRule(){const el=document.getElementById('cri');if(!el?.value.trim())return;S.rules.custom=[...S.rules.custom,{id:Date.now(),t:el.value.trim(),d:new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short'})}];el.value='';sv();render();}
 function delRule(id){if(!confirm('Remove this rule?'))return;S.rules.custom=S.rules.custom.filter(r=>r.id!==id);sv();render();}
@@ -590,7 +603,7 @@ function upKit(key,val){
   if(S.loggedIn==null)return;
   S.players[S.loggedIn].kit={...(S.players[S.loggedIn].kit||DK),[key]:val};
   const el=document.getElementById('kit-prev');if(el)el.innerHTML=kitSVG(S.players[S.loggedIn].kit,110,140,S.players[S.loggedIn].logo);
-  sv();
+  sv();pushPlayerSB(S.loggedIn);
 }
 function upLogo(key,val){
   if(S.loggedIn==null)return;
@@ -602,25 +615,25 @@ function upLogo(key,val){
     p.logo={...(p.logo||DL),[key]:val};
   }
   const el=document.getElementById('logo-prev');if(el)el.innerHTML=logoSVG(p.logo,100);
-  sv();
+  sv();pushPlayerSB(S.loggedIn);
 }
 function upInitials(val){
   if(S.loggedIn==null)return;
   S.players[S.loggedIn].logo={...(S.players[S.loggedIn].logo||DL),initials:val.toUpperCase().substring(0,4),initialsCustom:true};
   const el=document.getElementById('logo-prev');if(el)el.innerHTML=logoSVG(S.players[S.loggedIn].logo,100);
-  sv();
+  sv();pushPlayerSB(S.loggedIn);
 }
 function upInitialsPos(val){
   if(S.loggedIn==null)return;
   S.players[S.loggedIn].logo={...(S.players[S.loggedIn].logo||DL),initialsPos:val};
   const el=document.getElementById('logo-prev');if(el)el.innerHTML=logoSVG(S.players[S.loggedIn].logo,100);
-  sv();render();
+  sv();render();pushPlayerSB(S.loggedIn);
 }
 function upStars(val){
   if(S.loggedIn==null)return;
   S.players[S.loggedIn].logo={...(S.players[S.loggedIn].logo||DL),stars:+val};
   const el=document.getElementById('logo-prev');if(el)el.innerHTML=logoSVG(S.players[S.loggedIn].logo,100);
-  sv();
+  sv();pushPlayerSB(S.loggedIn);
 }
 function upBoots(id){
   if(S.loggedIn==null)return;
@@ -628,24 +641,24 @@ function upBoots(id){
   S.players[S.loggedIn].boots=id;
   S.players[S.loggedIn].bootC1=b.bg;
   S.players[S.loggedIn].bootC2=b.accent;
-  sv();render();
+  sv();render();pushPlayerSB(S.loggedIn);
 }
 function upTheme(id){
   if(S.loggedIn==null)return;
   S.players[S.loggedIn].theme=id;
   applyTheme(id);
-  sv();render();
+  sv();render();pushPlayerSB(S.loggedIn);
 }
 function upWinMessage(val){
   if(S.loggedIn==null)return;
   S.players[S.loggedIn].winMessage=val;
-  sv();
-  if(sb){const p=S.players[S.loggedIn];sb.from('players').upsert({id:p.id,name:p.name,win_message:val}).then(()=>{});}
+  sv();pushPlayerSB(S.loggedIn);
 }
 function upBootColor(key,val){
+  if(S.loggedIn==null)return;
   S.players[S.loggedIn][key]=val;
   const el=document.getElementById('boot-prev');if(el)el.innerHTML=bootSVG(S.players[S.loggedIn].bootC1,S.players[S.loggedIn].bootC2,52);
-  sv();
+  sv();pushPlayerSB(S.loggedIn);
 }
 
 // ===== NOTIFICATIONS =====
@@ -704,7 +717,7 @@ let sb=null;
 
 async function initSupabase(){
   try{
-    sb=window.supabase.createClient(SB_URL,SB_KEY);
+    if(!sb)sb=window.supabase.createClient(SB_URL,SB_KEY);
     // Load league PIN and registrations from Supabase settings
     const{data:settingsData}=await sb.from('settings').select('*');
     if(settingsData){
@@ -831,27 +844,43 @@ function subscribeRealtime(){
 async function loadPlayersFromSB(){
   if(!sb)return;
   try{
-    const{data}=await sb.from('players').select('*');
+    const{data}=await sb.from('players').select('*').order('id',{ascending:true});
     if(!data||!data.length)return;
-    // Merge Supabase player data into local state
-    if(!S.players)return;
-    S.players=S.players.map(p=>{
-      const sbp=data.find(x=>x.id===p.id);
-      if(!sbp)return p;
-      return{
-        ...p,
-        teamName:sbp.team_name||p.teamName,
-        kit:sbp.kit||p.kit,
-        logo:{...DL,...(sbp.logo||p.logo||{}),textColor:(sbp.logo||p.logo)?.textColor||'#ffd700'},
-        boots:sbp.boots||p.boots,
-        bootC1:sbp.boot_c1||p.bootC1,
-        bootC2:sbp.boot_c2||p.bootC2,
-        picks:sbp.picks||p.picks,
-        theme:sbp.theme||p.theme,
-        matchPts:sbp.match_pts||p.matchPts||0,
-        scorerPts:sbp.scorer_pts||p.scorerPts||0,
-      };
+    const hydrate=p=>({
+      id:p.id,
+      name:p.name,
+      teamName:p.team_name||`Team ${p.id+1}`,
+      pin:p.pin||'',
+      theme:p.theme||'navy',
+      teams:p.teams||[],
+      picks:p.picks||{reg:'',tierC:''},
+      kit:{...DK,...(p.kit||{})},
+      logo:{...DL,...(p.logo||{}),initials:p.logo?.initials||autoInit(p.team_name||p.name),textColor:p.logo?.textColor||'#ffd700'},
+      boots:p.boots||'predator',
+      bootC1:p.boot_c1||(BOOTS.find(b=>b.id===(p.boots||'predator'))||BOOTS[0]).bg,
+      bootC2:p.boot_c2||(BOOTS.find(b=>b.id===(p.boots||'predator'))||BOOTS[0]).accent,
+      winMessage:p.win_message||'',
+      matchPts:p.match_pts||0,
+      scorerPts:p.scorer_pts||0,
     });
+    if(!S.players){
+      // New device — bootstrap entire player list from Supabase
+      S.players=data.map(hydrate);
+      S.phase='done';
+    } else {
+      // Merge — update existing players with latest Supabase data
+      S.players=S.players.map(p=>{
+        const sbp=data.find(x=>x.id===p.id);
+        if(!sbp)return p;
+        return hydrate(sbp);
+      });
+    }
+    // Restore loggedIn by PIN if we have it saved
+    const savedPin=localStorage.getItem('wc26x_mypin');
+    if(savedPin&&S.loggedIn===null){
+      const idx=S.players.findIndex(p=>p.pin===savedPin);
+      if(idx>=0){S.loggedIn=idx;if(S.players[idx].theme)applyTheme(S.players[idx].theme);}
+    }
     sv();render();
   }catch(e){console.warn('loadPlayersFromSB failed',e);}
 }
@@ -882,27 +911,24 @@ async function savePredToSB(pid,mid,h,a){
   }catch(e){}
 }
 
-async function pushPlayersToSB(){
+async function pushPlayerSB(idx){
   if(!sb||!S.players)return;
+  const p=S.players[idx];if(!p)return;
   try{
-    for(const p of S.players){
-      await sb.from('players').upsert({
-        id:p.id,name:p.name,team_name:p.teamName,pin:p.pin,
-        theme:p.theme||'navy',teams:p.teams,picks:p.picks,
-        kit:p.kit,logo:p.logo,boots:p.boots,
-        boot_c1:p.bootC1,boot_c2:p.bootC2,
-        match_pts:p.matchPts,scorer_pts:p.scorerPts,
-        win_message:p.winMessage||null
-      });
-    }
-  }catch(e){console.warn('pushPlayersToSB failed',e);}
+    await sb.from('players').upsert({
+      id:p.id,name:p.name,team_name:p.teamName,pin:p.pin,
+      theme:p.theme||'navy',teams:p.teams,picks:p.picks,
+      kit:p.kit,logo:p.logo,boots:p.boots,
+      boot_c1:p.bootC1,boot_c2:p.bootC2,
+      match_pts:p.matchPts||0,scorer_pts:p.scorerPts||0,
+      win_message:p.winMessage||null
+    });
+  }catch(e){console.warn('pushPlayerSB failed',e);}
 }
 
-async function pushPicksSB(id){
+async function pushPlayersToSB(){
   if(!sb||!S.players)return;
-  const p=S.players[id];if(!p)return;
-  try{await sb.from('players').upsert({id:p.id,name:p.name,picks:p.picks});}
-  catch(e){}
+  for(const p of S.players) await pushPlayerSB(p.id);
 }
 
 // ===== 3-HOUR PREDICTION REMINDER =====
@@ -1083,7 +1109,7 @@ function renderSetup(root){
         <p style="font-family:'Oswald',sans-serif;font-size:13px;color:var(--th-muted);margin-bottom:16px;line-height:1.6">Enter your 4-digit PIN to access your team.</p>
         <label class="lbl">Your PIN</label>
         <input type="tel" maxlength="4" id="solo-pin-inp" placeholder="••••" style="letter-spacing:8px;text-align:center;font-size:28px;font-family:'Anton',Impact,sans-serif;margin-bottom:14px" onkeydown="if(event.key==='Enter')soloLogin()">
-        <button class="btn-gold" onclick="soloLogin()">Log In →</button>
+        <button id="solo-login-btn" class="btn-gold" onclick="soloLogin()">Log In →</button>
       </div></div>
     </div>`;
     return;
@@ -1242,6 +1268,9 @@ async function selfRegister(){
   if(currentRegs.some(r=>r.name.toLowerCase()===name.toLowerCase())){
     alert(`${name} is already registered. If that's you, go back and log in with your PIN.`);return;
   }
+  if(currentRegs.some(r=>r.pin===pin)){
+    alert('That PIN is already taken. Please choose a different 4-digit PIN.');return;
+  }
   const reg={name,teamName:team,pin};
   const newRegs=[...currentRegs,reg];
   S.registrations=newRegs;
@@ -1263,11 +1292,16 @@ function removeReg(idx){
 async function loadLeagueDirectory(){
   const el=document.getElementById('league-list');
   if(!el)return;
-  if(!sb){el.innerHTML=`<p style="font-family:'Oswald',sans-serif;font-size:13px;color:var(--th-secondary)">Connect to see leagues.</p>`;return;}
+  // If sb not ready yet, wait and retry
+  if(!sb){
+    el.innerHTML=`<p style="font-family:'Oswald',sans-serif;font-size:13px;color:var(--th-secondary)">Connecting...</p>`;
+    setTimeout(loadLeagueDirectory,800);return;
+  }
   try{
     const{data,error}=await sb.from('leagues').select('*').order('created_at',{ascending:false});
+    if(!document.getElementById('league-list'))return; // screen changed
     if(error||!data||!data.length){
-      el.innerHTML=`<p style="font-family:'Oswald',sans-serif;font-size:13px;color:var(--th-secondary);padding:6px 0">No leagues yet. Create one to get started.</p>`;
+      el.innerHTML=`<p style="font-family:'Oswald',sans-serif;font-size:13px;color:var(--th-secondary);padding:6px 0">No leagues yet. Create one below.</p>`;
       return;
     }
     el.innerHTML=data.map((lg,i)=>`
@@ -1282,7 +1316,8 @@ async function loadLeagueDirectory(){
         </div>
       </div>`).join('');
   }catch(e){
-    el.innerHTML=`<p style="font-family:'Oswald',sans-serif;font-size:13px;color:#f87171">Error loading leagues.</p>`;
+    const el2=document.getElementById('league-list');
+    if(el2)el2.innerHTML=`<p style="font-family:'Oswald',sans-serif;font-size:13px;color:#f87171">Error loading leagues.</p>`;
   }
 }
 
@@ -1320,21 +1355,49 @@ function createLeague(){
   S.onboardScreen='waiting-admin';sv();render();
 }
 
-function soloLogin(){
+async function soloLogin(){
   const pin=(document.getElementById('solo-pin-inp')?.value||'').trim();
+  const btn=document.getElementById('solo-login-btn');
+  const status=document.getElementById('login-gate-status');
   if(!pin)return;
-  if(!S.players){alert('No league found yet. Ask your organiser for the league PIN.');return;}
-  const idx=S.players.findIndex(p=>p.pin===pin);
-  if(idx===-1){alert('PIN not recognised.');return;}
-  S.loggedIn=idx;
-  if(S.players[idx].theme)applyTheme(S.players[idx].theme);
-  sv();render();
+  if(btn)btn.textContent='Checking...';
+  if(status)status.textContent='';
+  // If players loaded locally, try local first
+  if(S.players){
+    const idx=S.players.findIndex(p=>p.pin===pin);
+    if(idx>=0){
+      S.loggedIn=idx;
+      localStorage.setItem('wc26x_mypin',pin);
+      if(S.players[idx].theme)applyTheme(S.players[idx].theme);
+      sv();render();return;
+    }
+  }
+  // Try Supabase directly
+  if(sb){
+    try{
+      const{data}=await sb.from('players').select('*').eq('pin',pin).single();
+      if(data){
+        await loadPlayersFromSB();
+        const idx=S.players?.findIndex(p=>p.pin===pin)??-1;
+        if(idx>=0){
+          S.loggedIn=idx;
+          localStorage.setItem('wc26x_mypin',pin);
+          if(S.players[idx].theme)applyTheme(S.players[idx].theme);
+          sv();render();return;
+        }
+      }
+    }catch(e){}
+  }
+  if(btn)btn.textContent='Log In →';
+  if(status)status.textContent='PIN not recognised. Check with your organiser.';
+  else alert('PIN not recognised. Check with your organiser.');
 }
 
 function adminGate(screen){
   const pin=(document.getElementById('admin-pin-inp')?.value||'').trim();
   if(!pin)return;
   if(pin!==S.adminPin){alert('Wrong admin PIN.');return;}
+  S.adminLoggedIn=true;sv();
   if(screen==='admin-gate-create'){S.onboardScreen='create';}
   else if(screen==='admin-gate-draw'){S.onboardScreen='setup';}
   sv();render();
@@ -1512,11 +1575,11 @@ function renderGroups(){
 
 function renderLoginGate(msg=''){
   return `<div class="mcard"><div class="card-head">🔒 Log In</div><div class="card-body"><div class="login-gate">
-  <p style="font-family:'Oswald',sans-serif;font-size:14px;color:#94afd4;margin-bottom:16px;line-height:1.5">${esc(msg)}</p>
-  <div style="margin-bottom:10px"><label class="lbl">Select your player</label>
-  <select id="lsel">${S.players.map((p,i)=>`<option value="${i}">${esc(p.name)} — ${esc(p.teamName)}</option>`).join('')}</select></div>
-  <div style="margin-bottom:16px"><label class="lbl">Enter PIN</label><input type="tel" id="lpin" maxlength="4" placeholder="••••" class="pin-inp" onkeydown="if(event.key==='Enter')tryLogin()"></div>
-  <button class="btn-gold" onclick="tryLogin()">Log In</button>
+  <p style="font-family:'Oswald',sans-serif;font-size:14px;color:var(--th-muted);margin-bottom:16px;line-height:1.5">${esc(msg)}</p>
+  <label class="lbl">Your PIN</label>
+  <input type="tel" id="solo-pin-inp" maxlength="4" placeholder="••••" class="pin-inp" onkeydown="if(event.key==='Enter')soloLogin()">
+  <div id="login-gate-status" style="font-family:'Oswald',sans-serif;font-size:12px;color:var(--th-muted);text-align:center;margin:8px 0;min-height:18px"></div>
+  <button id="solo-login-btn" class="btn-gold" onclick="soloLogin()">Log In →</button>
   </div></div></div>`;
 }
 
