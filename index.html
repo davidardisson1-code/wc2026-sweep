@@ -105,7 +105,7 @@ select:focus{outline:none;border-color:#f5c518}
 </head>
 <body>
 <div class="site-header" onclick="if(S.phase==='setup'){S.onboardScreen='home';sv();render();}" style="cursor:pointer">
-  <div style="position:absolute;top:8px;right:12px;font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-secondary);letter-spacing:1px;opacity:.7">🍍 Pineapple · 28 May 16:28</div>
+  <div style="position:absolute;top:8px;right:12px;font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-secondary);letter-spacing:1px;opacity:.7">🍉 Watermelon · 28 May 16:40</div>
   <div class="site-logo">Official Sweepstake Edition</div>
   <div class="site-title">World Cup 2026</div>
   <div class="site-sub">Pack Opening Event</div>
@@ -1440,6 +1440,7 @@ async function soloLogin(){
     const idx=S.players.findIndex(p=>p.pin===pin);
     if(idx>=0){
       S.loggedIn=idx;
+      S.phase='done';
       localStorage.setItem('wc26x_mypin',pin);
       if(S.players[idx].theme)applyTheme(S.players[idx].theme);
       sv();render();return;
@@ -1454,6 +1455,7 @@ async function soloLogin(){
         const idx=S.players?.findIndex(p=>p.pin===pin)??-1;
         if(idx>=0){
           S.loggedIn=idx;
+          S.phase='done';
           localStorage.setItem('wc26x_mypin',pin);
           if(S.players[idx].theme)applyTheme(S.players[idx].theme);
           sv();render();return;
