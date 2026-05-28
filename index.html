@@ -918,7 +918,7 @@ async function pushPlayerSB(idx){
   if(!sb||!S.players)return;
   const p=S.players[idx];if(!p)return;
   try{
-    await sb.from('players').upsert({
+    const{error}=await sb.from('players').upsert({
       id:p.id,name:p.name,team_name:p.teamName,pin:p.pin,
       theme:p.theme||'navy',teams:p.teams,picks:p.picks,
       kit:p.kit,logo:p.logo,boots:p.boots,
@@ -926,7 +926,8 @@ async function pushPlayerSB(idx){
       match_pts:p.matchPts||0,scorer_pts:p.scorerPts||0,
       win_message:p.winMessage||null
     });
-  }catch(e){console.warn('pushPlayerSB failed',e);}
+    if(error)console.error('pushPlayerSB error:',error);
+  }catch(e){console.error('pushPlayerSB exception:',e);}
 }
 
 async function pushPlayersToSB(){
@@ -1034,7 +1035,6 @@ function renderSetup(root){
       <button class="btn-gold" onclick="S.onboardScreen='login';sv();render()" style="background:linear-gradient(180deg,#3a6fd8,#1a4aa8 60%,#0f2e7a);color:#fff;box-shadow:0 4px 0 #0a1e52,0 6px 16px rgba(30,80,200,.3)">🔑 Log In with PIN</button>
       <div style="border-top:1px solid var(--th-border-soft);margin:4px 0"></div>
       <button class="btn-ghost" onclick="S.onboardScreen='admin-gate-create';sv();render()" style="padding:11px;font-size:14px;letter-spacing:1px">⚙️ Create a League</button>
-      <button class="btn-ghost" onclick="S.onboardScreen='admin-gate-draw';sv();render()" style="padding:11px;font-size:14px;letter-spacing:1px">🎲 Start a Draw</button>
     </div>`;
     return;
   }
