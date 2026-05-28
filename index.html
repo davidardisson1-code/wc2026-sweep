@@ -105,7 +105,7 @@ select:focus{outline:none;border-color:#f5c518}
 </head>
 <body>
 <div class="site-header" onclick="if(S.phase==='setup'){S.onboardScreen='home';sv();render();}" style="cursor:pointer">
-  <div style="position:absolute;top:8px;right:12px;font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-secondary);letter-spacing:1px;opacity:.7">🍒 Cherry · 28 May 16:01</div>
+  <div style="position:absolute;top:8px;right:12px;font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-secondary);letter-spacing:1px;opacity:.7">🫐 Blueberry · 28 May 16:15</div>
   <div class="site-logo">Official Sweepstake Edition</div>
   <div class="site-title">World Cup 2026</div>
   <div class="site-sub">Pack Opening Event</div>
@@ -428,9 +428,8 @@ function adv(){
     sv();render();
     // Wait up to 3s for sb to be ready then push
     const tryPush=async()=>{
-      // Wait for sb
       for(let i=0;i<10;i++){if(sb)break;await new Promise(r=>setTimeout(r,300));}
-      if(!sb){showBanner('⚠️ No connection — tap to retry',true,tryPush);return;}
+      if(!sb){showSaveBanner('⚠️ No connection — tap to retry',true,tryPush);return;}
       try{
         const payload=S.players.map(p=>({
           id:p.id,name:p.name,team_name:p.teamName,pin:p.pin,
@@ -440,21 +439,11 @@ function adv(){
           match_pts:0,scorer_pts:0,win_message:p.winMessage||null
         }));
         const{error}=await sb.from('players').upsert(payload);
-        if(error){console.error('Push error:',error);showBanner('⚠️ Save failed — tap to retry',true,tryPush);return;}
-        // Verify
-        const{data}=await sb.from('players').select('id,pin').eq('pin',S.players[0].pin).single();
-        if(data){showBanner('✅ All players saved — everyone can now log in',false);}
-        else{showBanner('⚠️ Save failed — tap to retry',true,tryPush);}
-      }catch(e){console.error('Push exception:',e);showBanner('⚠️ Error saving — tap to retry',true,tryPush);}
-    };
-    const showBanner=(msg,isErr,retry)=>{
-      document.querySelectorAll('.save-banner').forEach(b=>b.remove());
-      const b=document.createElement('div');b.className='save-banner';
-      b.style.cssText=`position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:${isErr?'#dc2626':'#16a34a'};color:#fff;font-family:Anton,Impact,sans-serif;font-size:13px;letter-spacing:1px;padding:12px 24px;border-radius:8px;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.4);${isErr?'cursor:pointer':''}`;
-      b.textContent=msg;
-      if(isErr&&retry)b.onclick=()=>{b.remove();retry();};
-      else setTimeout(()=>b.remove(),6000);
-      document.body.appendChild(b);
+        if(error){console.error('Push error:',error);showSaveBanner('⚠️ Save failed — tap to retry',true,tryPush);return;}
+        const{data}=await sb.from('players').select('id,pin').eq('pin',S.players[0].pin).limit(1);
+        if(data&&data.length>0){showSaveBanner('✅ All players saved — everyone can now log in',false);}
+        else{showSaveBanner('⚠️ Save failed — tap to retry',true,tryPush);}
+      }catch(e){console.error('Push exception:',e);showSaveBanner('⚠️ Error saving — tap to retry',true,tryPush);}
     };
     tryPush();
   }
@@ -737,6 +726,11 @@ function logGoal(){
 
 // ===== QUICK DRAW (testing) =====
 function quickDraw(){
+  if(S.registrations&&S.registrations.length>=2){
+    S.names=S.registrations.map(r=>r.name);
+    S.teamNames=S.registrations.map(r=>r.teamName);
+    S.pins=S.registrations.map(r=>r.pin);
+  }
   const sh={A1:shuf(TM.A1),A2:shuf(TM.A2),B:shuf(TM.B),C:shuf(TM.C)};
   S.players=S.names.map((name,i)=>({
     id:i,name,teamName:S.teamNames[i]||`Team ${i+1}`,pin:S.pins[i]||'',
@@ -744,6 +738,36 @@ function quickDraw(){
     picks:{reg:'',tierC:''},kit:{...DK},logo:{...DL,initials:autoInit(S.teamNames[i]||`Team ${i+1}`)},boots:'predator',bootC1:'#b00',bootC2:'#fff',matchPts:0,scorerPts:0
   }));
   S.sh=sh;S.dr=6;S.dp=0;S.phase='done';sv();render();
+  // Push to Supabase with retry
+  const tryPush=async()=>{
+    for(let i=0;i<10;i++){if(sb)break;await new Promise(r=>setTimeout(r,300));}
+    if(!sb){showSaveBanner('⚠️ No connection — tap to retry',true,tryPush);return;}
+    try{
+      const payload=S.players.map(p=>({
+        id:p.id,name:p.name,team_name:p.teamName,pin:p.pin,
+        theme:p.theme||'navy',teams:p.teams,picks:p.picks||{reg:'',tierC:''},
+        kit:p.kit||{...DK},logo:p.logo||{...DL},boots:p.boots||'predator',
+        boot_c1:p.bootC1||'#b00',boot_c2:p.bootC2||'#fff',
+        match_pts:0,scorer_pts:0,win_message:null
+      }));
+      const{error}=await sb.from('players').upsert(payload);
+      if(error){showSaveBanner('⚠️ Save failed — tap to retry',true,tryPush);return;}
+      const{data}=await sb.from('players').select('id,pin').eq('pin',S.players[0].pin).limit(1);
+      if(data&&data.length>0)showSaveBanner('✅ All players saved — everyone can now log in',false);
+      else showSaveBanner('⚠️ Save failed — tap to retry',true,tryPush);
+    }catch(e){showSaveBanner('⚠️ Error — tap to retry',true,tryPush);}
+  };
+  tryPush();
+}
+
+function showSaveBanner(msg,isErr,retry){
+  document.querySelectorAll('.save-banner').forEach(b=>b.remove());
+  const b=document.createElement('div');b.className='save-banner';
+  b.style.cssText=`position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:${isErr?'#dc2626':'#16a34a'};color:#fff;font-family:Anton,Impact,sans-serif;font-size:13px;letter-spacing:1px;padding:12px 24px;border-radius:8px;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.4);${isErr?'cursor:pointer':''}`;
+  b.textContent=msg;
+  if(isErr&&retry)b.onclick=()=>{b.remove();retry();};
+  else setTimeout(()=>b.remove(),6000);
+  document.body.appendChild(b);
 }
 
 // ===== SUPABASE =====
