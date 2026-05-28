@@ -105,7 +105,7 @@ select:focus{outline:none;border-color:#f5c518}
 </head>
 <body>
 <div class="site-header" onclick="if(S.phase==='setup'){S.onboardScreen='home';sv();render();}" style="cursor:pointer">
-  <div style="position:absolute;top:8px;right:12px;font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-secondary);letter-spacing:1px;opacity:.7">🫐 Blueberry · 28 May 16:15</div>
+  <div style="position:absolute;top:8px;right:12px;font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-secondary);letter-spacing:1px;opacity:.7">🍍 Pineapple · 28 May 16:28</div>
   <div class="site-logo">Official Sweepstake Edition</div>
   <div class="site-title">World Cup 2026</div>
   <div class="site-sub">Pack Opening Event</div>
@@ -515,6 +515,15 @@ function login(idx,pin){
   S.loggedIn=idx;
   if(p.theme)applyTheme(p.theme);
   sv();render();return true;
+}
+function goHome(){
+  S.loggedIn=null;
+  S.adminLoggedIn=false;
+  localStorage.removeItem('wc26x_mypin');
+  S.phase='setup';
+  S.onboardScreen='home';
+  applyTheme('navy');
+  sv();render();
 }
 function logout(){S.loggedIn=null;S.adminLoggedIn=false;localStorage.removeItem('wc26x_mypin');applyTheme('navy');sv();render();}
 function tryLogin(){
@@ -1503,7 +1512,7 @@ function renderDraw(root){
 function renderDone(root){
   const p=S.loggedIn!=null?S.players[S.loggedIn]:null;
   const adminBtn=S.adminPin&&S.loggedIn===null?`<button class="btn-ghost" onclick="adminLogin()" style="font-size:11px;border-color:rgba(245,197,24,.4);color:#f5c518">🔑 Admin</button>`:'';
-  const logBar=p?`<div class="logged-bar"><div style="display:flex;align-items:center;gap:10px">${logoSVG(p.logo,28)}<div><div style="font-family:'Anton',Impact,sans-serif;font-size:13px;letter-spacing:1px;color:#f5c518">${esc(p.teamName)}</div><div style="font-family:'Oswald',sans-serif;font-size:11px;color:var(--th-muted);letter-spacing:1px">${esc(p.name)}</div></div></div><button class="btn-ghost" onclick="logout()" style="font-size:11px;padding:5px 10px">Log Out</button></div>`:'';
+  const logBar=p?`<div class="logged-bar"><div style="display:flex;align-items:center;gap:10px">${logoSVG(p.logo,28)}<div><div style="font-family:'Anton',Impact,sans-serif;font-size:13px;letter-spacing:1px;color:#f5c518">${esc(p.teamName)}</div><div style="font-family:'Oswald',sans-serif;font-size:11px;color:var(--th-muted);letter-spacing:1px">${esc(p.name)}</div></div></div><button class="btn-ghost" onclick="logout()" style="font-size:11px;padding:5px 10px">Log Out</button></div>`:`<div class="logged-bar"><div style="font-family:'Oswald',sans-serif;font-size:12px;color:var(--th-muted);letter-spacing:1px">Not logged in</div><button class="btn-ghost" onclick="goHome()" style="font-size:11px;padding:5px 10px">🏠 Home / Log In</button></div>`;
   const unreadCount=totalUnread();
   const tabs=[{id:'table',l:'Table'},{id:'groups',l:'Groups'},{id:'predict',l:'Predict'},{id:'predtable',l:'Pred Table'},{id:'myteam',l:'My Team'},{id:'picks',l:'Picks'},{id:'rules',l:'Rules'},{id:'chat',l:unreadCount>0?`Chat 🔴`:'Chat'}];
   const tabHtml=tabs.map(t=>`<button class="tab ${S.tab===t.id?'on':''}" ${t.id==='chat'?'id="chat-tab-btn"':''} onclick="setTab('${t.id}')">${t.l}</button>`).join('');
@@ -1519,7 +1528,7 @@ function renderDone(root){
   root.innerHTML=`
   <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px">
     <div><div style="font-family:'Anton',Impact,sans-serif;font-size:26px;letter-spacing:2px;background:linear-gradient(180deg,var(--th-text) 30%,#f5c518 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">WC 2026 Sweepstake</div><div style="font-family:'Oswald',sans-serif;font-size:12px;color:var(--th-secondary);letter-spacing:2px;margin-top:2px">Draw Complete · 11 June 2026</div></div>
-    <div style="display:flex;gap:6px">${adminBtn}${isAdmin()&&localStorage.getItem('wc26x_backup')?`<button class="btn-ghost" onclick="restoreBackup()" style="font-size:11px;border-color:rgba(248,113,113,.4);color:#f87171">↩ Restore</button>`:''}<button class="btn-ghost" onclick="reset()" style="font-size:11px">Reset</button></div>
+    <div style="display:flex;gap:6px">${adminBtn}<button class="btn-ghost" onclick="goHome()" style="font-size:11px">🏠 Home</button>${isAdmin()&&localStorage.getItem('wc26x_backup')?`<button class="btn-ghost" onclick="restoreBackup()" style="font-size:11px;border-color:rgba(248,113,113,.4);color:#f87171">↩ Restore</button>`:''}<button class="btn-ghost" onclick="reset()" style="font-size:11px">Reset</button></div>
   </div>
   ${logBar}
   <div class="tabs">${tabHtml}</div>
