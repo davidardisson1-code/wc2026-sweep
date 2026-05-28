@@ -105,7 +105,7 @@ select:focus{outline:none;border-color:#f5c518}
 </head>
 <body>
 <div class="site-header" onclick="if(S.phase==='setup'){S.onboardScreen='home';sv();render();}" style="cursor:pointer">
-  <div style="position:absolute;top:8px;right:12px;font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-secondary);letter-spacing:1px;opacity:.7">🥭 Mango · 28 May 15:41</div>
+  <div style="position:absolute;top:8px;right:12px;font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-secondary);letter-spacing:1px;opacity:.7">🍑 Peach · 28 May 15:52</div>
   <div class="site-logo">Official Sweepstake Edition</div>
   <div class="site-title">World Cup 2026</div>
   <div class="site-sub">Pack Opening Event</div>
@@ -428,33 +428,33 @@ function adv(){
     sv();render();
     // Wait up to 3s for sb to be ready then push
     const tryPush=async()=>{
-      for(let i=0;i<10;i++){
-        if(sb){
-          await pushPlayersToSB();
-          // Verify it worked
-          const{data}=await sb.from('players').select('id').limit(1);
-          if(data&&data.length>0){
-            const banner=document.createElement('div');
-            banner.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#16a34a;color:#fff;font-family:Anton,Impact,sans-serif;font-size:13px;letter-spacing:2px;padding:12px 24px;border-radius:8px;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.4)';
-            banner.textContent='✅ All players saved — everyone can now log in';
-            document.body.appendChild(banner);
-            setTimeout(()=>banner.remove(),5000);
-          } else {
-            const banner=document.createElement('div');
-            banner.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#dc2626;color:#fff;font-family:Anton,Impact,sans-serif;font-size:13px;letter-spacing:2px;padding:12px 24px;border-radius:8px;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.4);cursor:pointer';
-            banner.textContent='⚠️ Save failed — tap to retry';
-            banner.onclick=()=>{banner.remove();tryPush();};
-            document.body.appendChild(banner);
-          }
-          return;
-        }
-        await new Promise(r=>setTimeout(r,300));
-      }
-      const banner=document.createElement('div');
-      banner.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#dc2626;color:#fff;font-family:Anton,Impact,sans-serif;font-size:13px;letter-spacing:2px;padding:12px 24px;border-radius:8px;z-index:9999;cursor:pointer';
-      banner.textContent='⚠️ Could not connect — tap to retry';
-      banner.onclick=()=>{banner.remove();tryPush();};
-      document.body.appendChild(banner);
+      // Wait for sb
+      for(let i=0;i<10;i++){if(sb)break;await new Promise(r=>setTimeout(r,300));}
+      if(!sb){showBanner('⚠️ No connection — tap to retry',true,tryPush);return;}
+      try{
+        const payload=S.players.map(p=>({
+          id:p.id,name:p.name,team_name:p.teamName,pin:p.pin,
+          theme:p.theme||'navy',teams:p.teams,picks:p.picks||{reg:'',tierC:''},
+          kit:p.kit||{...DK},logo:p.logo||{...DL},boots:p.boots||'predator',
+          boot_c1:p.bootC1||'#b00',boot_c2:p.bootC2||'#fff',
+          match_pts:0,scorer_pts:0,win_message:p.winMessage||null
+        }));
+        const{error}=await sb.from('players').upsert(payload);
+        if(error){console.error('Push error:',error);showBanner('⚠️ Save failed — tap to retry',true,tryPush);return;}
+        // Verify
+        const{data}=await sb.from('players').select('id,pin').eq('pin',S.players[0].pin).single();
+        if(data){showBanner('✅ All players saved — everyone can now log in',false);}
+        else{showBanner('⚠️ Save failed — tap to retry',true,tryPush);}
+      }catch(e){console.error('Push exception:',e);showBanner('⚠️ Error saving — tap to retry',true,tryPush);}
+    };
+    const showBanner=(msg,isErr,retry)=>{
+      document.querySelectorAll('.save-banner').forEach(b=>b.remove());
+      const b=document.createElement('div');b.className='save-banner';
+      b.style.cssText=`position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:${isErr?'#dc2626':'#16a34a'};color:#fff;font-family:Anton,Impact,sans-serif;font-size:13px;letter-spacing:1px;padding:12px 24px;border-radius:8px;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.4);${isErr?'cursor:pointer':''}`;
+      b.textContent=msg;
+      if(isErr&&retry)b.onclick=()=>{b.remove();retry();};
+      else setTimeout(()=>b.remove(),6000);
+      document.body.appendChild(b);
     };
     tryPush();
   }
