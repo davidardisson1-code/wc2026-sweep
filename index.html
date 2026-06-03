@@ -105,7 +105,7 @@ select:focus{outline:none;border-color:#f5c518}
 </head>
 <body>
 <div class="site-header" onclick="if(S.phase==='setup'){S.onboardScreen='home';sv();render();}" style="cursor:pointer">
-  <div style="position:absolute;top:8px;right:12px;font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-secondary);letter-spacing:1px;opacity:.7">🍉 Watermelon · 28 May 16:40</div>
+  <div style="position:absolute;top:8px;right:12px;font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-secondary);letter-spacing:1px;opacity:.7">🍈 Melon · 3 Jun 10:08</div>
   <div class="site-logo">Official Sweepstake Edition</div>
   <div class="site-title">World Cup 2026</div>
   <div class="site-sub">Pack Opening Event</div>
@@ -847,10 +847,12 @@ async function syncMatches(){
 }
 
 async function syncGoals(){
-  if(!sb||!S.players)return;
+  if(!sb)return;
   try{
     const{data}=await sb.from('goals').select('*');
     if(!data)return;
+    S.goals=data;
+    if(!S.players)return;
     S.players.forEach(p=>{
       p.scorerPts=0;
       data.forEach(g=>{
@@ -1516,13 +1518,14 @@ function renderDone(root){
   const adminBtn=S.adminPin&&S.loggedIn===null?`<button class="btn-ghost" onclick="adminLogin()" style="font-size:11px;border-color:rgba(245,197,24,.4);color:#f5c518">🔑 Admin</button>`:'';
   const logBar=p?`<div class="logged-bar"><div style="display:flex;align-items:center;gap:10px">${logoSVG(p.logo,28)}<div><div style="font-family:'Anton',Impact,sans-serif;font-size:13px;letter-spacing:1px;color:#f5c518">${esc(p.teamName)}</div><div style="font-family:'Oswald',sans-serif;font-size:11px;color:var(--th-muted);letter-spacing:1px">${esc(p.name)}</div></div></div><button class="btn-ghost" onclick="logout()" style="font-size:11px;padding:5px 10px">Log Out</button></div>`:`<div class="logged-bar"><div style="font-family:'Oswald',sans-serif;font-size:12px;color:var(--th-muted);letter-spacing:1px">Not logged in</div><button class="btn-ghost" onclick="goHome()" style="font-size:11px;padding:5px 10px">🏠 Home / Log In</button></div>`;
   const unreadCount=totalUnread();
-  const tabs=[{id:'table',l:'Table'},{id:'groups',l:'Groups'},{id:'predict',l:'Predict'},{id:'predtable',l:'Pred Table'},{id:'myteam',l:'My Team'},{id:'picks',l:'Picks'},{id:'rules',l:'Rules'},{id:'chat',l:unreadCount>0?`Chat 🔴`:'Chat'}];
+  const tabs=[{id:'table',l:'Table'},{id:'groups',l:'Groups'},{id:'predict',l:'Predict'},{id:'predtable',l:'Pred Table'},{id:'boot',l:'⚽ Boot'},{id:'myteam',l:'My Team'},{id:'picks',l:'Picks'},{id:'rules',l:'Rules'},{id:'chat',l:unreadCount>0?`Chat 🔴`:'Chat'}];
   const tabHtml=tabs.map(t=>`<button class="tab ${S.tab===t.id?'on':''}" ${t.id==='chat'?'id="chat-tab-btn"':''} onclick="setTab('${t.id}')">${t.l}</button>`).join('');
   let cnt='';
   if(S.tab==='table')cnt=renderTable();
   else if(S.tab==='groups')cnt=renderGroups();
   else if(S.tab==='predict')cnt=renderPredictions();
   else if(S.tab==='predtable')cnt=renderPredTable();
+  else if(S.tab==='boot')cnt=renderGoldenBoot();
   else if(S.tab==='myteam')cnt=renderMyTeam();
   else if(S.tab==='picks')cnt=renderPicks();
   else if(S.tab==='rules')cnt=renderRules();
@@ -1555,8 +1558,9 @@ function getBreakdown(p){
 }
 
 function renderTable(){
-  if(S.loggedIn===null)return renderLoginGate('Log in to view the league table.');
+  if(S.loggedIn===null&&!isAdmin())return renderLoginGate('Log in to view the league table.');
   if(hasPendingPreds(S.loggedIn)&&!isAdmin())return `<div class="mcard"><div class="card-head">⚠️ Predictions Required</div><div class="card-body"><p style="font-family:'Oswald',sans-serif;font-size:14px;color:var(--th-muted);line-height:1.6;margin-bottom:16px">You have upcoming matches to predict before you can see the table. No peeking at standings first!</p><button class="btn-gold" onclick="setTab('predict')">Go to Predictions →</button></div></div>`;
+  const todaysWidget=renderTodaysFixtures();
   const sorted=[...S.players].sort((a,b)=>(b.matchPts+b.scorerPts)-(a.matchPts+a.scorerPts));
   const colHd=(t)=>`<span style="font-family:'Anton',Impact,sans-serif;font-size:10px;letter-spacing:1px;color:#5a7ab4">${t}</span>`;
   const hdr=`<div style="display:grid;grid-template-columns:1fr 28px 28px 28px 28px 28px 28px 28px 28px 28px 40px;gap:2px;padding:6px 12px 6px 14px;background:rgba(10,20,60,.6);border-bottom:2px solid #f5c518;align-items:center">
@@ -1589,7 +1593,7 @@ function renderTable(){
       <span style="font-family:'Anton',Impact,sans-serif;font-size:18px;color:#f5c518;text-align:center;display:block">${total}</span>
     </div>`;
   }).join('');
-  return `<div class="mcard" style="overflow-x:auto">${hdr}${rows}</div>`;
+  return `${todaysWidget}<div class="mcard" style="overflow-x:auto">${hdr}${rows}</div>`;
 }
 
 function renderGroups(){
@@ -1740,12 +1744,14 @@ function autoSavePred(pid,mid){
   if(!h||!a||h.value===''||a.value==='')return;
   setPred(pid,mid,h.value,a.value);
   const ind=document.getElementById('saved_'+mid);
-  if(ind){ind.style.display='inline';setTimeout(()=>{if(ind)ind.style.display='none';},2000);}
+  if(ind){ind.style.display='inline';ind.textContent='✓ Saved';}
+  const card=document.getElementById('predcard_'+mid);
+  if(card)card.style.borderColor='rgba(74,222,128,.5)';
 }
 
 function renderPredictions(){
-  if(S.loggedIn===null)return renderLoginGate('Log in to submit your predictions.');
-  const pid=S.loggedIn;
+  if(S.loggedIn===null&&!isAdmin())return renderLoginGate('Log in to submit your predictions.');
+  const pid=S.loggedIn!=null?S.loggedIn:0;
   // Upcoming = not locked (not started and no result)
   const upcoming=S.matches.filter(m=>!isLocked(m));
   // Played = has a result (show for scoring, then hide after a day)
@@ -1754,7 +1760,8 @@ function renderPredictions(){
   const fmtKO=kickoff=>kickoff?new Date(kickoff).toLocaleString('en-GB',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'Europe/London'}):'TBC';
   const upHtml=upcoming.length?upcoming.map(m=>{
     const pred=S.predictions[pid]?.[m.id];
-    return`<div class="match-card">
+    const isSaved=pred!=null;
+    return`<div class="match-card" id="predcard_${m.id}" style="${isSaved?'border-color:rgba(74,222,128,.5)':''}">
       <div style="font-family:'Oswald',sans-serif;font-size:11px;color:var(--th-secondary);letter-spacing:2px;margin-bottom:8px;text-transform:uppercase">${fmtKO(m.kickoff)}</div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
         <span style="font-family:'Oswald',sans-serif;font-size:15px;font-weight:600;flex:1;text-align:right">${m.homeF} ${esc(m.home)}</span>
@@ -1767,11 +1774,10 @@ function renderPredictions(){
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div style="display:flex;gap:8px;align-items:center">
-          <button id="savebtn_${m.id}" class="btn-sm" onclick="savePred(${pid},'${m.id}')">Save</button>
           ${pred!=null?`<button class="btn-sm btn-sm-red" style="font-size:11px" onclick="clearPred(${pid},'${m.id}')">Clear</button>`:''}
-          <span id="saved_${m.id}" style="display:none;font-family:'Oswald',sans-serif;font-size:11px;color:#4ade80;letter-spacing:1px">✓ Saved</span>
+          <span id="saved_${m.id}" style="display:${isSaved?'inline':'none'};font-family:'Oswald',sans-serif;font-size:11px;color:#4ade80;letter-spacing:1px">✓ Saved</span>
         </div>
-        ${pred!=null?`<span style="font-family:'Oswald',sans-serif;font-size:12px;color:#4ade80;letter-spacing:1px">✓ ${pred.h} - ${pred.a}</span>`:`<span style="font-family:'Oswald',sans-serif;font-size:12px;color:var(--th-secondary)">Not predicted yet</span>`}
+        ${pred!=null?`<span style="font-family:'Oswald',sans-serif;font-size:13px;color:#4ade80;letter-spacing:1px;font-weight:600">✓ ${pred.h} - ${pred.a}</span>`:`<span style="font-family:'Oswald',sans-serif;font-size:12px;color:var(--th-secondary)">Not predicted yet</span>`}
       </div>
     </div>`;}).join(''):`<div style="padding:14px 16px"><p style="font-family:'Oswald',sans-serif;font-size:14px;color:var(--th-secondary)">No upcoming fixtures to predict.</p></div>`;
   const playedHtml=played.length?played.map(m=>{
@@ -1825,20 +1831,135 @@ function renderPredTable(){
 
 function renderPicks(){
   if(!S.players)return '';
-  // Lock picks once any match has started or finished
   const locked=S.matches.some(m=>m.hScore!=null||(m.kickoff&&new Date(m.kickoff).getTime()<=Date.now()));
   return `<div style="display:flex;flex-direction:column;gap:10px">
     ${locked?`<div class="mcard"><div class="card-body" style="background:rgba(245,197,24,.07);border-radius:6px"><p style="font-family:'Oswald',sans-serif;font-size:13px;color:#f5c518;letter-spacing:1px">🔒 Scorer picks are locked — the tournament has started.</p></div></div>`:''}
-    ${S.players.map(p=>`<div class="mcard">
+    ${S.players.map(p=>{
+      const tierCTeams=p.teams.filter(t=>t.tier==='C').map(t=>t.n);
+      return`<div class="mcard">
       <div class="card-head" style="cursor:pointer" onclick="showProfile(${p.id})">${logoSVG(p.logo,28)} ${esc(p.teamName)} <span style="font-size:11px;font-weight:400;color:var(--th-muted);margin-left:6px">${esc(p.name)}</span></div>
       <div class="card-body">
         <div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:12px">${p.teams.map(t=>`<span class="badge ${TC[t.tier]}">${t.f} ${esc(t.n)}</span>`).join('')}</div>
         <div class="grid2">
-          <div><label class="lbl">Top scorer <span class="badge ba">+${S.rules.sReg}pts/goal</span></label><input type="text" value="${esc(p.picks.reg)}" ${locked?'disabled':''} oninput="upPick(${p.id},'reg',this.value)" placeholder="e.g. Mbappé" style="${locked?'opacity:.5;cursor:not-allowed':''}"></div>
-          <div><label class="lbl">Tier C scorer <span class="badge bc">+${S.rules.sTierC}pts/goal</span></label><input type="text" value="${esc(p.picks.tierC)}" ${locked?'disabled':''} oninput="upPick(${p.id},'tierC',this.value)" placeholder="Tier C striker" style="${locked?'opacity:.5;cursor:not-allowed':''}"></div>
+          <div style="position:relative">
+            <label class="lbl">Top scorer <span class="badge ba">+${S.rules.sReg}pts/goal</span></label>
+            <input type="text" id="pick_reg_${p.id}" value="${esc(p.picks.reg)}" ${locked?'disabled':''} oninput="searchPlayers(${p.id},'reg',this.value)" onblur="setTimeout(()=>{const d=document.getElementById('drop_reg_${p.id}');if(d)d.style.display='none';},200)" placeholder="Type 1+ letter..." style="${locked?'opacity:.5;cursor:not-allowed':''}" autocomplete="off">
+            <div id="drop_reg_${p.id}" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--th-sa);border:1px solid var(--th-border);border-radius:6px;max-height:200px;overflow-y:auto;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,.4)"></div>
+          </div>
+          <div style="position:relative">
+            <label class="lbl">Tier C scorer <span class="badge bc">+${S.rules.sTierC}pts/goal</span></label>
+            <input type="text" id="pick_tierC_${p.id}" value="${esc(p.picks.tierC)}" ${locked?'disabled':''} oninput="searchPlayers(${p.id},'tierC',this.value,'${tierCTeams.join('|')}')" onblur="setTimeout(()=>{const d=document.getElementById('drop_tierC_${p.id}');if(d)d.style.display='none';},200)" placeholder="Your Tier C strikers only" style="${locked?'opacity:.5;cursor:not-allowed':''}" autocomplete="off">
+            <div id="drop_tierC_${p.id}" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--th-sa);border:1px solid var(--th-border);border-radius:6px;max-height:200px;overflow-y:auto;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,.4)"></div>
+          </div>
         </div>
       </div>
+    </div>`;}).join('')}
+  </div>`;
+}
+
+let searchTimer=null;
+async function searchPlayers(pid,kind,query,tierCFilter=''){
+  upPick(pid,kind,query);
+  const drop=document.getElementById(`drop_${kind}_${pid}`);
+  if(!drop)return;
+  if(!query||query.length<1){drop.style.display='none';return;}
+  clearTimeout(searchTimer);
+  searchTimer=setTimeout(async()=>{
+    if(!sb){drop.style.display='none';return;}
+    try{
+      let q=sb.from('squads').select('player_name,team_name,position').ilike('player_name',`%${query}%`).limit(30);
+      if(tierCFilter){
+        const teams=tierCFilter.split('|').filter(Boolean);
+        if(teams.length)q=q.in('team_name',teams);
+      }
+      const{data}=await q;
+      if(!data||!data.length){
+        drop.innerHTML=`<div style="padding:10px;font-family:'Oswald',sans-serif;font-size:12px;color:var(--th-secondary)">No matching players</div>`;
+        drop.style.display='block';return;
+      }
+      drop.innerHTML=data.map(p=>`<div onclick="selectPick(${pid},'${kind}','${esc(p.player_name)}')" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--th-border-soft);font-family:'Oswald',sans-serif;font-size:13px" onmouseover="this.style.background='rgba(245,197,24,.1)'" onmouseout="this.style.background='transparent'">
+        <div style="color:var(--th-text)">${esc(p.player_name)}</div>
+        <div style="font-size:10px;color:var(--th-secondary);margin-top:1px">${esc(p.team_name)}${p.position?` · ${esc(p.position)}`:''}</div>
+      </div>`).join('');
+      drop.style.display='block';
+    }catch(e){console.warn('search failed',e);drop.style.display='none';}
+  },150);
+}
+
+function selectPick(pid,kind,name){
+  const inp=document.getElementById(`pick_${kind}_${pid}`);
+  if(inp)inp.value=name;
+  upPick(pid,kind,name);
+  const drop=document.getElementById(`drop_${kind}_${pid}`);
+  if(drop)drop.style.display='none';
+}
+
+function renderGoldenBoot(){
+  if(!S.players)return '';
+  // Build goal counts per scorer pick by querying local goals
+  const standings=S.players.map(p=>{
+    const reg=p.picks?.reg||'';
+    const tierC=p.picks?.tierC||'';
+    const regGoals=reg?(S.goals||[]).filter(g=>g.player_name?.toLowerCase().includes(reg.toLowerCase())).length:0;
+    const tierCGoals=tierC?(S.goals||[]).filter(g=>g.player_name?.toLowerCase().includes(tierC.toLowerCase())).length:0;
+    const regPts=regGoals*S.rules.sReg;
+    const tierCPts=tierCGoals*S.rules.sTierC;
+    return{...p,regGoals,tierCGoals,total:regPts+tierCPts};
+  }).sort((a,b)=>b.total-a.total);
+  return `<div class="mcard"><div class="card-head">⚽ Golden Boot Leaderboard</div>
+    <p style="padding:8px 16px 0;font-family:'Oswald',sans-serif;font-size:12px;color:var(--th-muted);line-height:1.5">Live scorer pick standings. Goals tracked from the API every 5 minutes.</p>
+    ${standings.map((p,i)=>`
+    <div style="display:flex;gap:10px;padding:11px 14px;${i>0?'border-top:1px solid var(--th-border-soft)':''}align-items:center">
+      <div style="flex-shrink:0;text-align:center;min-width:22px">
+        <div style="font-family:'Anton',Impact,sans-serif;font-size:16px;color:#f5c518">${i+1}</div>
+      </div>
+      <div style="flex-shrink:0;cursor:pointer" onclick="showProfile(${p.id})">${logoSVG(p.logo,38)}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-family:'Anton',Impact,sans-serif;font-size:15px;letter-spacing:1px;color:#f5c518;line-height:1.1">${esc(p.teamName)}</div>
+        <div style="font-family:'Oswald',sans-serif;font-size:11px;color:var(--th-secondary);margin-top:1px">${esc(p.name)}</div>
+        <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap">
+          ${p.picks?.reg?`<span style="font-family:'Oswald',sans-serif;font-size:11px;color:var(--th-muted)">⚽ ${esc(p.picks.reg)}: <span style="color:#4ade80">${p.regGoals}</span></span>`:''}
+          ${p.picks?.tierC?`<span style="font-family:'Oswald',sans-serif;font-size:11px;color:var(--th-muted)">🌟 ${esc(p.picks.tierC)}: <span style="color:#8fce5a">${p.tierCGoals}</span></span>`:''}
+        </div>
+      </div>
+      <div style="text-align:center;min-width:42px">
+        <div style="font-family:'Anton',Impact,sans-serif;font-size:24px;color:#f5c518;line-height:1">${p.total}</div>
+        <div style="font-family:'Oswald',sans-serif;font-size:9px;color:var(--th-secondary);letter-spacing:1px">PTS</div>
+      </div>
     </div>`).join('')}
+  </div>`;
+}
+
+function renderTodaysFixtures(){
+  if(!S.matches.length||!S.players)return '';
+  const now=new Date();
+  const today=now.toLocaleDateString('en-CA',{timeZone:'Europe/London'}); // YYYY-MM-DD
+  const todays=S.matches.filter(m=>{
+    if(!m.kickoff)return false;
+    return new Date(m.kickoff).toLocaleDateString('en-CA',{timeZone:'Europe/London'})===today;
+  });
+  if(!todays.length)return '';
+  const ownerMap={};
+  S.players.forEach(p=>(p.teams||[]).forEach(t=>{ownerMap[t.n]=p;}));
+  return `<div class="mcard" style="margin-bottom:14px"><div class="card-head">📅 Today's Fixtures</div>
+    ${todays.map((m,i)=>{
+      const hO=ownerMap[m.home];const aO=ownerMap[m.away];
+      const ko=new Date(m.kickoff).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/London'});
+      return`<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;${i>0?'border-top:1px solid var(--th-border-soft)':''}">
+        <div style="font-family:'Anton',Impact,sans-serif;font-size:13px;color:#f5c518;min-width:46px">${ko}</div>
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:10px">
+          <div style="display:flex;align-items:center;gap:5px;flex:1;justify-content:flex-end;text-align:right">
+            <span style="font-family:'Oswald',sans-serif;font-size:13px">${esc(m.home)}</span>
+            ${hO?`<div style="cursor:pointer" onclick="showProfile(${hO.id})">${logoSVG(hO.logo,22)}</div>`:''}
+          </div>
+          <span style="font-family:'Anton',Impact,sans-serif;font-size:13px;color:var(--th-secondary)">${m.hScore!=null?`${m.hScore}-${m.aScore}`:'vs'}</span>
+          <div style="display:flex;align-items:center;gap:5px;flex:1">
+            ${aO?`<div style="cursor:pointer" onclick="showProfile(${aO.id})">${logoSVG(aO.logo,22)}</div>`:''}
+            <span style="font-family:'Oswald',sans-serif;font-size:13px">${esc(m.away)}</span>
+          </div>
+        </div>
+      </div>`;
+    }).join('')}
   </div>`;
 }
 
