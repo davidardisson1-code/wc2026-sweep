@@ -105,7 +105,7 @@ select:focus{outline:none;border-color:#f5c518}
 </head>
 <body>
 <div class="site-header" onclick="if(S.phase==='setup'){S.onboardScreen='home';sv();render();}" style="cursor:pointer">
-  <div style="position:absolute;top:8px;right:12px;font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-secondary);letter-spacing:1px;opacity:.7">🍋 Lime · 3 Jun 10:42</div>
+  <div style="position:absolute;top:8px;right:12px;font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-secondary);letter-spacing:1px;opacity:.7">🍊 Orange · 3 Jun 10:51</div>
   <div class="site-logo">Official Sweepstake Edition</div>
   <div class="site-title">World Cup 2026</div>
   <div class="site-sub">Pack Opening Event</div>
@@ -1559,8 +1559,8 @@ function getBreakdown(p){
 
 function renderTable(){
   if(S.loggedIn===null&&!isAdmin())return renderLoginGate('Log in to view the league table.');
-  if(hasPendingPreds(S.loggedIn)&&!isAdmin())return `<div class="mcard"><div class="card-head">⚠️ Predictions Required</div><div class="card-body"><p style="font-family:'Oswald',sans-serif;font-size:14px;color:var(--th-muted);line-height:1.6;margin-bottom:16px">You have upcoming matches to predict before you can see the table. No peeking at standings first!</p><button class="btn-gold" onclick="setTab('predict')">Go to Predictions →</button></div></div>`;
   const todaysWidget=renderTodaysFixtures();
+  if(hasPendingPreds(S.loggedIn)&&!isAdmin())return `${todaysWidget}<div class="mcard"><div class="card-head">⚠️ Predictions Required</div><div class="card-body"><p style="font-family:'Oswald',sans-serif;font-size:14px;color:var(--th-muted);line-height:1.6;margin-bottom:16px">You have upcoming matches to predict before you can see the table. No peeking at standings first!</p><button class="btn-gold" onclick="setTab('predict')">Go to Predictions →</button></div></div>`;
   const sorted=[...S.players].sort((a,b)=>(b.matchPts+b.scorerPts)-(a.matchPts+a.scorerPts));
   const colHd=(t)=>`<span style="font-family:'Anton',Impact,sans-serif;font-size:10px;letter-spacing:1px;color:#5a7ab4">${t}</span>`;
   const hdr=`<div style="display:grid;grid-template-columns:1fr 28px 28px 28px 28px 28px 28px 28px 28px 28px 40px;gap:2px;padding:6px 12px 6px 14px;background:rgba(10,20,60,.6);border-bottom:2px solid #f5c518;align-items:center">
