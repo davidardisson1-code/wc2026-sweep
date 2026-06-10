@@ -116,7 +116,7 @@ select:focus{outline:none;border-color:#f5c518}
 </head>
 <body>
 <div class="site-header" onclick="if(S.phase==='setup'){S.onboardScreen='home';sv();render();}" style="cursor:pointer">
-  <div style="position:absolute;top:8px;right:12px;font-family:'Anton',Impact,sans-serif;font-size:12px;color:#f5c518;letter-spacing:2px;padding:4px 10px;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);border-radius:4px">🍋 LIME · 10 JUN</div>
+  <div style="position:absolute;top:8px;right:12px;font-family:'Anton',Impact,sans-serif;font-size:12px;color:#f5c518;letter-spacing:2px;padding:4px 10px;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);border-radius:4px">🥭 MANGO · 11 JUN</div>
   <div class="site-logo">Official Sweepstake Edition</div>
   <div class="site-title">World Cup 2026</div>
 </div>
@@ -237,7 +237,7 @@ function shuf(a){a=[...a];for(let i=a.length-1;i>0;i--){const j=0|Math.random()*
 function autoInit(name){const w=(name||'').trim().split(/\s+/).filter(Boolean);return w.length>1?w.slice(0,2).map(x=>x[0]).join('').toUpperCase():(name||'??').substring(0,2).toUpperCase();}
 
 // ===== SAVE / LOAD =====
-function sv(){try{localStorage.setItem('wc26x',JSON.stringify({phase:S.phase,onboardScreen:S.onboardScreen,names:S.names,teamNames:S.teamNames,pins:S.pins,adminPin:S.adminPin,adminLoggedIn:S.adminLoggedIn||false,leaguePin:S.leaguePin,registrations:S.registrations||[],sh:S.sh,dr:S.dr,dp:S.dp,players:S.players,rules:S.rules,loggedIn:S.loggedIn,matches:S.matches,predictions:S.predictions,tab:S.tab,todayMyView:S.todayMyView,leaderboardAdv:S.leaderboardAdv}));}catch(e){}}
+function sv(){try{localStorage.setItem('wc26x',JSON.stringify({phase:S.phase,onboardScreen:S.onboardScreen,names:S.names,teamNames:S.teamNames,pins:S.pins,adminPin:S.adminPin,adminLoggedIn:S.adminLoggedIn||false,leaguePin:S.leaguePin,registrations:S.registrations||[],sh:S.sh,dr:S.dr,dp:S.dp,players:S.players,rules:S.rules,loggedIn:S.loggedIn,myPin:S.myPin,matches:S.matches,predictions:S.predictions,tab:S.tab,todayMyView:S.todayMyView,leaderboardAdv:S.leaderboardAdv}));}catch(e){}}
 function init(){
   try{
     const raw=localStorage.getItem('wc26x');
@@ -251,7 +251,7 @@ function init(){
       })):null;
       Object.assign(S,{phase:d.phase||'setup',onboardScreen:d.onboardScreen||'home',names:d.names||S.names,teamNames:d.teamNames||S.teamNames,
         pins:d.pins||S.pins,adminPin:d.adminPin||'0260',adminLoggedIn:d.adminLoggedIn||false,leaguePin:d.leaguePin||'',registrations:d.registrations||[],sh:d.sh||null,dr:d.dr||0,dp:d.dp||0,players,
-        rules:{...S.rules,...(d.rules||{})},loggedIn:d.loggedIn??null,tab:d.tab||'today',
+        rules:{...S.rules,...(d.rules||{})},loggedIn:d.loggedIn??null,myPin:d.myPin||null,tab:d.tab||'today',
         matches:d.matches||[],predictions:d.predictions||{},
         todayMyView:d.todayMyView!==false,leaderboardAdv:d.leaderboardAdv||false});
     }
@@ -262,13 +262,12 @@ function init(){
   if(S.loggedIn!=null&&S.players?.[S.loggedIn]?.theme){
     applyTheme(S.players[S.loggedIn].theme);
   }
-  // SECURITY: clear any previously saved PINs from earlier versions of the app
-  // that used silent auto-login. Players must always enter PIN now.
+  // SECURITY: clear any previously saved PINs from earlier versions
   localStorage.removeItem('wc26x_mypin');
-  // Always reset loggedIn to null on fresh page load to force PIN entry
-  S.loggedIn=null;S.myPin=null;S.adminLoggedIn=false;
+  // Note: loggedIn is now preserved from localStorage via Object.assign above
   // Init Supabase client immediately so it's ready for any screen
   sb=window.supabase?.createClient(SB_URL,SB_KEY);
+  // Render with current login state (could be logged in or null)
   render();
   // Bootstrap from Supabase — handles new devices and cross-device sync
   initSupabase().then(()=>{
@@ -2061,20 +2060,22 @@ function renderToday(){
         <div style="font-family:'Oswald',sans-serif;font-size:11px;color:var(--th-secondary);letter-spacing:1px;flex:1">${isPast?new Date(m.kickoff).toLocaleDateString('en-GB',{day:'numeric',month:'short',timeZone:'Europe/London'}):fmtKO(m.kickoff)}</div>
         ${isPast&&myPred?`<span style="font-family:'Oswald',sans-serif;font-size:10px;letter-spacing:1px;color:${predCorrect?'#4ade80':predResult?'#f5c518':'#94afd4'}">${predCorrect?`✓ +4pts`:predResult?`✓ +2pts`:`Predicted ${myPred.h}-${myPred.a}`}</span>`:''}
       </div>
-      <div style="display:flex;align-items:center;gap:10px">
-        <div style="flex:1;display:flex;align-items:center;gap:6px;justify-content:flex-end;text-align:right;min-width:0">
-          <span style="font-family:'Oswald',sans-serif;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.home)}</span>
-          ${hO?`<div style="cursor:pointer;flex-shrink:0" onclick="showPlayerProfile(${hO.id})" title="${esc(hO.name)}">${logoSVG(hO.logo,22)}</div>`:''}
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center">
+          <div style="font-size:32px;line-height:1">${m.homeF}</div>
+          <div style="font-family:'Oswald',sans-serif;font-size:12px;font-weight:600;color:var(--th-text);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.home)}</div>
+          ${hO?`<div style="cursor:pointer;margin-top:1px" onclick="showPlayerProfile(${hO.id})" title="${esc(hO.name)}">${logoSVG(hO.logo,18)}</div>`:''}
         </div>
         <div style="font-family:'Anton',Impact,sans-serif;font-size:16px;color:${hasScore?'#f5c518':'var(--th-secondary)'};min-width:44px;text-align:center">
-          ${hasScore?`${m.hScore} - ${m.aScore}`:'vs'}
+          ${hasScore?`${m.hScore}-${m.aScore}`:'vs'}
         </div>
-        <div style="flex:1;display:flex;align-items:center;gap:6px;min-width:0">
-          ${aO?`<div style="cursor:pointer;flex-shrink:0" onclick="showPlayerProfile(${aO.id})" title="${esc(aO.name)}">${logoSVG(aO.logo,22)}</div>`:''}
-          <span style="font-family:'Oswald',sans-serif;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.away)}</span>
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center">
+          <div style="font-size:32px;line-height:1">${m.awayF}</div>
+          <div style="font-family:'Oswald',sans-serif;font-size:12px;font-weight:600;color:var(--th-text);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.away)}</div>
+          ${aO?`<div style="cursor:pointer;margin-top:1px" onclick="showPlayerProfile(${aO.id})" title="${esc(aO.name)}">${logoSVG(aO.logo,18)}</div>`:''}
         </div>
       </div>
-      ${hO||aO?`<div style="font-family:'Oswald',sans-serif;font-size:11px;color:var(--th-muted);text-align:center;margin-top:4px;letter-spacing:.5px">${hO?`${esc(hO.name)}${aO?' vs '+esc(aO.name):''}`:aO?esc(aO.name):''}</div>`:''}
+      ${hO||aO?`<div style="font-family:'Oswald',sans-serif;font-size:11px;color:var(--th-muted);text-align:center;letter-spacing:.5px">${hO?esc(hO.name):''}${hO&&aO?' vs ':''} ${aO?esc(aO.name):''}</div>`:''}
       ${!hasScore&&myPred?`<div style="font-family:'Oswald',sans-serif;font-size:11px;color:#4ade80;text-align:center;margin-top:4px;letter-spacing:.5px">My prediction: <span style="font-weight:600">${myPred.h}-${myPred.a}</span></div>`:''}
       ${!hasScore&&!myPred&&pid!=null?`<div style="text-align:center;margin-top:6px"><button class="btn-sm" onclick="setTab('predict')" style="font-size:10px;padding:3px 10px">Predict</button></div>`:''}
     </div>`;
