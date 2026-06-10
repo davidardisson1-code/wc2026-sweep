@@ -116,7 +116,7 @@ select:focus{outline:none;border-color:#f5c518}
 </head>
 <body>
 <div class="site-header" onclick="if(S.phase==='setup'){S.onboardScreen='home';sv();render();}" style="cursor:pointer">
-  <div style="position:absolute;top:8px;right:12px;font-family:'Anton',Impact,sans-serif;font-size:12px;color:#f5c518;letter-spacing:2px;padding:4px 10px;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);border-radius:4px">🍊 TANGERINE · 10 JUN</div>
+  <div style="position:absolute;top:8px;right:12px;font-family:'Anton',Impact,sans-serif;font-size:12px;color:#f5c518;letter-spacing:2px;padding:4px 10px;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);border-radius:4px">🍋 LIME · 10 JUN</div>
   <div class="site-logo">Official Sweepstake Edition</div>
   <div class="site-title">World Cup 2026</div>
 </div>
@@ -245,7 +245,7 @@ function init(){
       const d=JSON.parse(raw);
       const players=d.players?d.players.map(p=>({
         ...p,kit:p.kit||{...DK},
-        logo:{...DL,...(p.logo||{}),initials:p.logo?.initials||autoInit(p.teamName||p.name),initialsPos:p.logo?.initialsPos||'bottom',stars:p.logo?.stars||0,textColor:p.logo?.textColor||p.logo?.accent||'#ffd700'},
+        logo:{...DL,...(p.logo||{}),initials:p.logo?.initials!==undefined?p.logo.initials:autoInit(p.teamName||p.name),initialsPos:p.logo?.initialsPos||'bottom',stars:p.logo?.stars||0,textColor:p.logo?.textColor||p.logo?.accent||'#ffd700'},
         boots:p.boots||'predator',bootC1:p.bootC1||(BOOTS.find(b=>b.id===(p.boots||'predator'))||BOOTS[0]).bg,bootC2:p.bootC2||(BOOTS.find(b=>b.id===(p.boots||'predator'))||BOOTS[0]).accent,
         teamName:p.teamName||`Team ${p.id+1}`,pin:p.pin||''
       })):null;
@@ -1130,7 +1130,7 @@ async function loadPlayersFromSB(){
       picks:{reg:p.picks?.reg||'',tierC:p.picks?.tierC||''},
       winMessages:p.picks?._winMessages||{},
       kit:{...DK,...(p.kit||{})},
-      logo:{...DL,...(p.logo||{}),initials:p.logo?.initials||autoInit(p.team_name||p.name),textColor:p.logo?.textColor||'#ffd700'},
+      logo:{...DL,...(p.logo||{}),initials:p.logo?.initials!==undefined?p.logo.initials:autoInit(p.team_name||p.name),textColor:p.logo?.textColor||'#ffd700'},
       boots:p.boots||'predator',
       bootC1:p.boot_c1||(BOOTS.find(b=>b.id===(p.boots||'predator'))||BOOTS[0]).bg,
       bootC2:p.boot_c2||(BOOTS.find(b=>b.id===(p.boots||'predator'))||BOOTS[0]).accent,
@@ -2064,17 +2064,17 @@ function renderToday(){
       <div style="display:flex;align-items:center;gap:10px">
         <div style="flex:1;display:flex;align-items:center;gap:6px;justify-content:flex-end;text-align:right;min-width:0">
           <span style="font-family:'Oswald',sans-serif;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.home)}</span>
-          ${hO?`<div style="cursor:pointer;flex-shrink:0" onclick="showProfile(${hO.id})" title="${esc(hO.name)}">${logoSVG(hO.logo,22)}</div>`:''}
+          ${hO?`<div style="cursor:pointer;flex-shrink:0" onclick="showPlayerProfile(${hO.id})" title="${esc(hO.name)}">${logoSVG(hO.logo,22)}</div>`:''}
         </div>
         <div style="font-family:'Anton',Impact,sans-serif;font-size:16px;color:${hasScore?'#f5c518':'var(--th-secondary)'};min-width:44px;text-align:center">
           ${hasScore?`${m.hScore} - ${m.aScore}`:'vs'}
         </div>
         <div style="flex:1;display:flex;align-items:center;gap:6px;min-width:0">
-          ${aO?`<div style="cursor:pointer;flex-shrink:0" onclick="showProfile(${aO.id})" title="${esc(aO.name)}">${logoSVG(aO.logo,22)}</div>`:''}
+          ${aO?`<div style="cursor:pointer;flex-shrink:0" onclick="showPlayerProfile(${aO.id})" title="${esc(aO.name)}">${logoSVG(aO.logo,22)}</div>`:''}
           <span style="font-family:'Oswald',sans-serif;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.away)}</span>
         </div>
       </div>
-      ${hO&&aO?`<div style="font-family:'Oswald',sans-serif;font-size:11px;color:var(--th-muted);text-align:center;margin-top:4px;letter-spacing:.5px">${esc(hO.name)} vs ${esc(aO.name)}</div>`:hO?`<div style="font-family:'Oswald',sans-serif;font-size:11px;color:var(--th-muted);text-align:center;margin-top:4px">${esc(hO.name)}'s team</div>`:aO?`<div style="font-family:'Oswald',sans-serif;font-size:11px;color:var(--th-muted);text-align:center;margin-top:4px">${esc(aO.name)}'s team</div>`:''}
+      ${hO||aO?`<div style="font-family:'Oswald',sans-serif;font-size:11px;color:var(--th-muted);text-align:center;margin-top:4px;letter-spacing:.5px">${hO?`${esc(hO.name)}${aO?' vs '+esc(aO.name):''}`:aO?esc(aO.name):''}</div>`:''}
       ${!hasScore&&myPred?`<div style="font-family:'Oswald',sans-serif;font-size:11px;color:#4ade80;text-align:center;margin-top:4px;letter-spacing:.5px">My prediction: <span style="font-weight:600">${myPred.h}-${myPred.a}</span></div>`:''}
       ${!hasScore&&!myPred&&pid!=null?`<div style="text-align:center;margin-top:6px"><button class="btn-sm" onclick="setTab('predict')" style="font-size:10px;padding:3px 10px">Predict</button></div>`:''}
     </div>`;
@@ -2460,7 +2460,7 @@ function renderPredTable(){
       <div style="flex-shrink:0;text-align:center;min-width:22px">
         <div style="font-family:'Anton',Impact,sans-serif;font-size:14px;color:#f5c518">${i+1}</div>
       </div>
-      <div style="flex-shrink:0;cursor:pointer" onclick="showProfile(${p.id})">${logoSVG(p.logo,40)}</div>
+      <div style="flex-shrink:0;cursor:pointer" onclick="showPlayerProfile(${p.id})">${logoSVG(p.logo,40)}</div>
       <div style="flex:1;min-width:0">
         <div style="font-family:'Anton',Impact,sans-serif;font-size:16px;letter-spacing:1px;color:#f5c518;line-height:1.1">${esc(p.teamName)}</div>
         <div style="font-family:'Oswald',sans-serif;font-size:11px;color:var(--th-secondary);margin-top:1px">${esc(p.name)}</div>
@@ -2493,7 +2493,7 @@ function renderPicks(){
       const regSaved=p.picks?.reg&&p.picks.reg.length>0;
       const tierCSaved=p.picks?.tierC&&p.picks.tierC.length>0;
       return`<div class="mcard" style="overflow:visible">
-      <div class="card-head" style="cursor:pointer" onclick="showProfile(${p.id})">${logoSVG(p.logo,28)} ${esc(p.teamName)} <span style="font-size:11px;font-weight:400;color:var(--th-muted);margin-left:6px">${esc(p.name)}</span></div>
+      <div class="card-head" style="cursor:pointer" onclick="showPlayerProfile(${p.id})">${logoSVG(p.logo,28)} ${esc(p.teamName)} <span style="font-size:11px;font-weight:400;color:var(--th-muted);margin-left:6px">${esc(p.name)}</span></div>
       <div class="card-body" style="overflow:visible">
         <div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:12px">${p.teams.map(t=>`<span class="badge ${TC[t.tier]}">${t.f} ${esc(t.n)}</span>`).join('')}</div>
         <div class="grid2">
@@ -2571,7 +2571,7 @@ function renderGoldenBoot(){
       <div style="flex-shrink:0;text-align:center;min-width:22px">
         <div style="font-family:'Anton',Impact,sans-serif;font-size:16px;color:#f5c518">${i+1}</div>
       </div>
-      <div style="flex-shrink:0;cursor:pointer" onclick="showProfile(${p.id})">${logoSVG(p.logo,38)}</div>
+      <div style="flex-shrink:0;cursor:pointer" onclick="showPlayerProfile(${p.id})">${logoSVG(p.logo,38)}</div>
       <div style="flex:1;min-width:0">
         <div style="font-family:'Anton',Impact,sans-serif;font-size:15px;letter-spacing:1px;color:#f5c518;line-height:1.1">${esc(p.teamName)}</div>
         <div style="font-family:'Oswald',sans-serif;font-size:11px;color:var(--th-secondary);margin-top:1px">${esc(p.name)}</div>
@@ -2612,16 +2612,18 @@ function renderTodaysFixtures(){
     ${upcoming.map((m,i)=>{
       const hO=ownerMap[m.home];const aO=ownerMap[m.away];
       return`<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;${i>0?'border-top:1px solid var(--th-border-soft)':''}">
-        <div style="font-family:'Oswald',sans-serif;font-size:11px;color:var(--th-secondary);min-width:110px;letter-spacing:1px">${fmtKO(m.kickoff)}</div>
-        <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:10px">
-          <div style="display:flex;align-items:center;gap:5px;flex:1;justify-content:flex-end;text-align:right">
-            <span style="font-family:'Oswald',sans-serif;font-size:13px">${esc(m.home)}</span>
-            ${hO?`<div style="cursor:pointer" onclick="showProfile(${hO.id})">${logoSVG(hO.logo,22)}</div>`:''}
+        <div style="font-family:'Oswald',sans-serif;font-size:11px;color:var(--th-secondary);min-width:100px;letter-spacing:1px">${fmtKO(m.kickoff)}</div>
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex:1;text-align:center">
+            <div style="font-size:28px;line-height:1">${m.homeF}</div>
+            <div style="font-family:'Oswald',sans-serif;font-size:11px;color:var(--th-text);overflow:hidden;text-overflow:ellipsis;max-width:90px">${esc(m.home)}</div>
+            ${hO?`<div style="cursor:pointer;margin-top:2px" onclick="showPlayerProfile(${hO.id})" title="${esc(hO.name)}">${logoSVG(hO.logo,20)}</div>`:'<div style="height:20px"></div>'}
           </div>
-          <span style="font-family:'Anton',Impact,sans-serif;font-size:13px;color:var(--th-secondary)">${m.hScore!=null?`${m.hScore}-${m.aScore}`:'vs'}</span>
-          <div style="display:flex;align-items:center;gap:5px;flex:1">
-            ${aO?`<div style="cursor:pointer" onclick="showProfile(${aO.id})">${logoSVG(aO.logo,22)}</div>`:''}
-            <span style="font-family:'Oswald',sans-serif;font-size:13px">${esc(m.away)}</span>
+          <span style="font-family:'Anton',Impact,sans-serif;font-size:13px;color:var(--th-secondary);flex-shrink:0">${m.hScore!=null?`${m.hScore}-${m.aScore}`:'vs'}</span>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex:1;text-align:center">
+            <div style="font-size:28px;line-height:1">${m.awayF}</div>
+            <div style="font-family:'Oswald',sans-serif;font-size:11px;color:var(--th-text);overflow:hidden;text-overflow:ellipsis;max-width:90px">${esc(m.away)}</div>
+            ${aO?`<div style="cursor:pointer;margin-top:2px" onclick="showPlayerProfile(${aO.id})" title="${esc(aO.name)}">${logoSVG(aO.logo,20)}</div>`:'<div style="height:20px"></div>'}
           </div>
         </div>
       </div>`;
