@@ -105,7 +105,7 @@ select:focus{outline:none;border-color:#f5c518}
 </head>
 <body>
 <div class="site-header" onclick="if(S.phase==='setup'){S.onboardScreen='home';sv();render();}" style="cursor:pointer">
-  <div style="position:absolute;top:8px;right:12px;font-family:'Anton',Impact,sans-serif;font-size:12px;color:#f5c518;letter-spacing:2px;padding:4px 10px;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);border-radius:4px">🍐 PEAR3 · 5 JUN</div>
+  <div style="position:absolute;top:8px;right:12px;font-family:'Anton',Impact,sans-serif;font-size:12px;color:#f5c518;letter-spacing:2px;padding:4px 10px;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);border-radius:4px">🍇 GRAPE2 · 5 JUN</div>
   <div class="site-logo">Official Sweepstake Edition</div>
   <div class="site-title">World Cup 2026</div>
 </div>
@@ -950,6 +950,31 @@ async function syncMatches(){
   }catch(e){console.warn('syncMatches failed',e);}
 }
 
+function namesMatch(picked,scored){
+  if(!picked||!scored)return false;
+  // Normalise: lowercase, strip accents, trim, remove dots
+  const norm=s=>s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\./g,'').trim();
+  const p=norm(picked);
+  const s=norm(scored);
+  if(p===s)return true;
+  const pTokens=p.split(/\s+/).filter(Boolean);
+  const sTokens=s.split(/\s+/).filter(Boolean);
+  if(!pTokens.length||!sTokens.length)return false;
+  // Surname (last token) must match
+  const pSurname=pTokens[pTokens.length-1];
+  const sSurname=sTokens[sTokens.length-1];
+  if(pSurname!==sSurname)return false;
+  // If both have a first name/initial, the first letters must match
+  // e.g. "kylian mbappe" vs "k mbappe" → both start with k → match
+  // e.g. "kylian mbappe" vs "junior mbappe" → k vs j → no match
+  if(pTokens.length>=2&&sTokens.length>=2){
+    if(pTokens[0][0]===sTokens[0][0])return true;
+    return false;
+  }
+  // Single-name match (rare, only one side has full name)
+  return true;
+}
+
 async function syncGoals(){
   if(!sb)return;
   try{
@@ -960,9 +985,8 @@ async function syncGoals(){
     S.players.forEach(p=>{
       p.scorerPts=0;
       data.forEach(g=>{
-        const gn=g.player_name?.toLowerCase();
-        if(p.picks.reg&&p.picks.reg.toLowerCase()===gn) p.scorerPts+=S.rules.sReg;
-        if(p.picks.tierC&&p.picks.tierC.toLowerCase()===gn){
+        if(p.picks.reg&&namesMatch(p.picks.reg,g.player_name)) p.scorerPts+=S.rules.sReg;
+        if(p.picks.tierC&&namesMatch(p.picks.tierC,g.player_name)){
           const tm=p.teams.find(t=>t.n===g.team);
           if(tm?.tier==='C') p.scorerPts+=S.rules.sTierC;
         }
@@ -1004,11 +1028,10 @@ function subscribeRealtime(){
       .on('postgres_changes',{event:'INSERT',schema:'public',table:'goals'},payload=>{
         const g=payload.new;
         if(S.players){
-          const gn=(g.player_name||'').toLowerCase();
           S.players.forEach(p=>{
-            if(p.picks.reg&&p.picks.reg.toLowerCase()===gn)
+            if(p.picks.reg&&namesMatch(p.picks.reg,g.player_name))
               fireNotif(`⚽ ${g.player_name} scored!`,`${esc(p.name)}'s top scorer +${S.rules.sReg}pts`);
-            if(p.picks.tierC&&p.picks.tierC.toLowerCase()===gn)
+            if(p.picks.tierC&&namesMatch(p.picks.tierC,g.player_name))
               fireNotif(`🌟 ${g.player_name} scored!`,`${esc(p.name)}'s Tier C pick +${S.rules.sTierC}pts`);
           });
         }
