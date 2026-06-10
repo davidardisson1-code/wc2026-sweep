@@ -116,7 +116,7 @@ select:focus{outline:none;border-color:#f5c518}
 </head>
 <body>
 <div class="site-header" onclick="if(S.phase==='setup'){S.onboardScreen='home';sv();render();}" style="cursor:pointer">
-  <div style="position:absolute;top:8px;right:12px;font-family:'Anton',Impact,sans-serif;font-size:12px;color:#f5c518;letter-spacing:2px;padding:4px 10px;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);border-radius:4px">🌺 PAPAYA · 11 JUN</div>
+  <div style="position:absolute;top:8px;right:12px;font-family:'Anton',Impact,sans-serif;font-size:12px;color:#f5c518;letter-spacing:2px;padding:4px 10px;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);border-radius:4px">🥝 KIWI · 11 JUN</div>
   <div class="site-logo">Official Sweepstake Edition</div>
   <div class="site-title">World Cup 2026</div>
 </div>
@@ -617,6 +617,7 @@ function login(idx,pin){
   const p=S.players[idx];if(!p)return false;
   if(p.pin&&p.pin!==pin){alert('Wrong PIN. Try again.');return false;}
   S.loggedIn=idx;
+  S.myPin=p.pin||pin;
   if(p.theme)applyTheme(p.theme);
   sv();render();return true;
 }
@@ -1306,16 +1307,20 @@ function showPlayerProfile(playerId){
       else{tierBkdwn[t.tier].L++;}
     });
   });
-  const predictions=(S.predictions||[]).filter(pred=>pred.player_id===p.id);
-  let predCorrect=0;
-  predictions.forEach(pred=>{
-    const m=S.matches?.find(mch=>mch.id===pred.match_id);
+  // S.predictions is shaped {playerId: {matchId: {h, a}}}
+  const myPreds=S.predictions?.[p.id]||{};
+  const predEntries=Object.entries(myPreds);
+  let predCorrect=0,predResult=0;
+  predEntries.forEach(([mid,pred])=>{
+    const m=S.matches?.find(mch=>mch.id===mid||mch.id===+mid);
     if(m&&m.hScore!=null){
-      const won=(m.hScore>m.aScore&&pred.prediction==='H')||(m.aScore>m.hScore&&pred.prediction==='A')||(m.hScore===m.aScore&&pred.prediction==='D');
-      if(won)predCorrect++;
+      if(pred.h===m.hScore&&pred.a===m.aScore)predCorrect++;
+      else if(Math.sign(pred.h-pred.a)===Math.sign(m.hScore-m.aScore))predResult++;
     }
   });
-  const predAccuracy=predictions.length>0?Math.round(predCorrect/predictions.length*100)+'%':'N/A';
+  const settled=predEntries.filter(([mid])=>{const m=S.matches?.find(mch=>mch.id===mid||mch.id===+mid);return m&&m.hScore!=null;}).length;
+  const predAccuracy=settled>0?Math.round((predCorrect+predResult)/settled*100)+'%':'N/A';
+  const predictions=predEntries;
   document.querySelectorAll('.profile-overlay').forEach(o=>o.remove());
   const overlay=document.createElement('div');
   overlay.className='profile-overlay';
@@ -2559,8 +2564,8 @@ function renderGoldenBoot(){
   const standings=S.players.map(p=>{
     const reg=p.picks?.reg||'';
     const tierC=p.picks?.tierC||'';
-    const regGoals=reg?(S.goals||[]).filter(g=>g.player_name?.toLowerCase().includes(reg.toLowerCase())).length:0;
-    const tierCGoals=tierC?(S.goals||[]).filter(g=>g.player_name?.toLowerCase().includes(tierC.toLowerCase())).length:0;
+    const regGoals=reg?(S.goals||[]).filter(g=>namesMatch(reg,g.player_name)).length:0;
+    const tierCGoals=tierC?(S.goals||[]).filter(g=>namesMatch(tierC,g.player_name)).length:0;
     const regPts=regGoals*S.rules.sReg;
     const tierCPts=tierCGoals*S.rules.sTierC;
     return{...p,regGoals,tierCGoals,total:regPts+tierCPts};
