@@ -116,7 +116,7 @@ select:focus{outline:none;border-color:#f5c518}
 </head>
 <body>
 <div class="site-header" onclick="if(S.phase==='setup'){S.onboardScreen='home';sv();render();}" style="cursor:pointer">
-  <div style="position:absolute;top:8px;right:12px;font-family:'Anton',Impact,sans-serif;font-size:12px;color:#f5c518;letter-spacing:2px;padding:4px 10px;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);border-radius:4px">🍈 MELON · 11 JUN</div>
+  <div style="position:absolute;top:8px;right:12px;font-family:'Anton',Impact,sans-serif;font-size:12px;color:#f5c518;letter-spacing:2px;padding:4px 10px;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);border-radius:4px">🥑 GUAVA · 12 JUN</div>
   <div class="site-logo">Official Sweepstake Edition</div>
   <div class="site-title">World Cup 2026</div>
 </div>
@@ -1006,9 +1006,9 @@ async function syncMatches(){
     const{data}=await sb.from('matches').select('*').order('kickoff',{ascending:true});
     if(!data)return;
     S.matches=data.map(m=>({
-      id:m.id,home:m.home,away:m.away,
-      homeF:ALL_TEAMS.find(t=>t.n===m.home)?.f||'',
-      awayF:ALL_TEAMS.find(t=>t.n===m.away)?.f||'',
+      id:m.id,home:canonicalTeam(m.home),away:canonicalTeam(m.away),
+      homeF:ALL_TEAMS.find(t=>t.n===canonicalTeam(m.home))?.f||'',
+      awayF:ALL_TEAMS.find(t=>t.n===canonicalTeam(m.away))?.f||'',
       kickoff:m.kickoff,
       hScore:m.home_score??null,
       aScore:m.away_score??null
@@ -1016,6 +1016,41 @@ async function syncMatches(){
     recalcPoints();
     sv();render();
   }catch(e){console.warn('syncMatches failed',e);}
+}
+
+// Map API/external team names to canonical internal names
+const TEAM_ALIASES={
+  'Bosnia & Herzegovina':'Bosnia & Herz.',
+  'Bosnia-Herzegovina':'Bosnia & Herz.',
+  'Bosnia and Herzegovina':'Bosnia & Herz.',
+  'United States':'USA',
+  'United States of America':'USA',
+  'US':'USA',
+  'Korea Republic':'South Korea',
+  'Republic of Korea':'South Korea',
+  'Korea':'South Korea',
+  'Czech Republic':'Czechia',
+  'Turkey':'Türkiye',
+  'Cote d\'Ivoire':'Ivory Coast',
+  "Côte d'Ivoire":'Ivory Coast',
+  'Cabo Verde':'Cape Verde',
+  'Curacao':'Curaçao',
+  'Congo DR':'DR Congo',
+  'DR of Congo':'DR Congo',
+  'Democratic Republic of the Congo':'DR Congo',
+  'Iran Islamic Republic':'Iran',
+  'IR Iran':'Iran'
+};
+function canonicalTeam(n){
+  if(!n)return n;
+  // Direct alias hit
+  if(TEAM_ALIASES[n])return TEAM_ALIASES[n];
+  // Try matching ALL_TEAMS directly
+  if(ALL_TEAMS.find(t=>t.n===n))return n;
+  // Last resort: case-insensitive contains match against canonical names
+  const lc=n.toLowerCase();
+  const match=ALL_TEAMS.find(t=>t.n.toLowerCase()===lc||lc.includes(t.n.toLowerCase())||t.n.toLowerCase().includes(lc));
+  return match?match.n:n;
 }
 
 function namesMatch(picked,scored){
@@ -1048,11 +1083,11 @@ async function syncGoals(){
   try{
     const{data}=await sb.from('goals').select('*');
     if(!data)return;
-    S.goals=data;
+    S.goals=data.map(g=>({...g,team:canonicalTeam(g.team)}));
     if(!S.players)return;
     S.players.forEach(p=>{
       p.scorerPts=0;
-      data.forEach(g=>{
+      S.goals.forEach(g=>{
         if(p.picks.reg&&namesMatch(p.picks.reg,g.player_name)) p.scorerPts+=S.rules.sReg;
         if(p.picks.tierC&&namesMatch(p.picks.tierC,g.player_name)){
           const tm=p.teams.find(t=>t.n===g.team);
@@ -1068,8 +1103,10 @@ function recalcPoints(){
   if(!S.players)return;
   // Build chronological match list (only finished)
   const finished=S.matches.filter(m=>m.hScore!=null).sort((a,b)=>new Date(a.kickoff)-new Date(b.kickoff));
+  const goals=S.goals||[];
   S.players.forEach(p=>{
     p.matchPts=0;
+    p.scorerPts=0;
     // chronological results per player for streak: 'W' / 'D' / 'L'
     const sequence=[];
     finished.forEach(m=>{
@@ -1083,6 +1120,14 @@ function recalcPoints(){
         else if(drew){p.matchPts+=r.D;sequence.push({r:'D',ko:m.kickoff});}
         else {p.matchPts+=r.L;sequence.push({r:'L',ko:m.kickoff});}
       });
+    });
+    // Recalculate scorer points from goals
+    goals.forEach(g=>{
+      if(p.picks?.reg&&namesMatch(p.picks.reg,g.player_name)) p.scorerPts+=S.rules.sReg;
+      if(p.picks?.tierC&&namesMatch(p.picks.tierC,g.player_name)){
+        const tm=p.teams.find(t=>t.n===g.team);
+        if(tm?.tier==='C') p.scorerPts+=S.rules.sTierC;
+      }
     });
     // streak = trailing W count
     let streak=0;
@@ -1203,6 +1248,10 @@ async function loadPlayersFromSB(){
         return hydrate(sbp);
       });
     }
+    // CRITICAL: recalc points from matches because Supabase columns
+    // match_pts/scorer_pts are not authoritative — they're calculated client-side
+    // from S.matches + S.goals. Hydration sets them to 0, so we must recalc.
+    recalcPoints();
     // SECURITY: do NOT auto-login from saved PIN.
     // This caused other users on shared devices/browsers to be auto-logged in as someone else.
     // Players must always enter their PIN explicitly.
