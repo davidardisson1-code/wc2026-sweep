@@ -105,6 +105,10 @@ select:focus{outline:none;border-color:#f5c518}
 .rank-2-card{background:linear-gradient(180deg,rgba(196,196,196,.07),rgba(196,196,196,0)) !important;border-left:3px solid #c4c4c4}
 .rank-3-card{background:linear-gradient(180deg,rgba(205,127,50,.08),rgba(205,127,50,0)) !important;border-left:3px solid #cd7f32}
 .rank-last-card{background:linear-gradient(180deg,rgba(248,113,113,.05),rgba(248,113,113,0)) !important;border-left:3px solid rgba(248,113,113,.4)}
+.me-row{position:relative;background:rgba(59,130,246,.14) !important;box-shadow:inset 4px 0 0 #60a5fa}
+.me-row.rank-1-card{background:linear-gradient(90deg,rgba(59,130,246,.18),rgba(245,197,24,.10)) !important;box-shadow:inset 4px 0 0 #60a5fa,inset -3px 0 0 #f5c518}
+.me-row.rank-2-card,.me-row.rank-3-card,.me-row.rank-last-card{background:rgba(59,130,246,.14) !important}
+.me-pill{display:inline-flex;align-items:center;background:#60a5fa;color:#0a0e1a;font-family:'Anton',Impact,sans-serif;font-size:9px;letter-spacing:1.5px;padding:1px 6px;border-radius:3px;margin-left:6px;line-height:1.4}
 @keyframes livepulse{0%,100%{opacity:.8}50%{opacity:1}}
 @keyframes liveflash{0%,100%{opacity:1}50%{opacity:.95}}
 .fi{animation:fi .45s ease both}
@@ -116,7 +120,7 @@ select:focus{outline:none;border-color:#f5c518}
 </head>
 <body>
 <div class="site-header" onclick="if(S.phase==='setup'){S.onboardScreen='home';sv();render();}" style="cursor:pointer">
-  <div style="position:absolute;top:8px;right:12px;font-family:'Anton',Impact,sans-serif;font-size:12px;color:#f5c518;letter-spacing:2px;padding:4px 10px;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);border-radius:4px">🥑 GUAVA · 12 JUN</div>
+  <div style="position:absolute;top:8px;right:12px;font-family:'Anton',Impact,sans-serif;font-size:12px;color:#f5c518;letter-spacing:2px;padding:4px 10px;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);border-radius:4px">🥥 LYCHEE · 12 JUN</div>
   <div class="site-logo">Official Sweepstake Edition</div>
   <div class="site-title">World Cup 2026</div>
 </div>
@@ -2258,14 +2262,14 @@ function renderTable(){
     const rows=playerStats.map((s,i)=>{
       const p=s.p;
       const isMe=p.id===S.loggedIn;
-      return `<div class="${rankClass(i)}" style="display:flex;align-items:center;gap:10px;padding:11px 12px;${i>0?'border-top:1px solid var(--th-border-soft)':''}${isMe?'background:rgba(245,197,24,.07) !important':''}">
+      return `<div class="${rankClass(i)} ${isMe?'me-row':''}" style="display:flex;align-items:center;gap:10px;padding:11px 12px;${i>0?'border-top:1px solid var(--th-border-soft)':''}">
         <div style="display:flex;flex-direction:column;align-items:center;min-width:30px">
           <div style="font-family:'Anton',Impact,sans-serif;font-size:16px;color:#f5c518;line-height:1">${i+1}</div>
           <div style="margin-top:1px">${posChange(p.name,i)}</div>
         </div>
         <div style="flex-shrink:0;cursor:pointer" onclick="showPlayerProfile(${p.id})">${logoSVG(p.logo,38)}</div>
         <div style="flex:1;min-width:0">
-          <div style="font-family:'Anton',Impact,sans-serif;font-size:14px;color:#f5c518;letter-spacing:.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:5px">${esc(p.teamName)} ${fire(p)}</div>
+          <div style="font-family:'Anton',Impact,sans-serif;font-size:14px;color:#f5c518;letter-spacing:.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:5px">${esc(p.teamName)} ${fire(p)}${isMe?'<span class="me-pill">YOU</span>':''}</div>
           <div style="font-family:'Oswald',sans-serif;font-size:11px;color:var(--th-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</div>
         </div>
         <div style="text-align:right;flex-shrink:0">
@@ -2283,7 +2287,7 @@ function renderTable(){
     const p=s.p;
     const bd=s.bd;
     const isMe=p.id===S.loggedIn;
-    return `<div class="${rankClass(i)}" style="padding:12px 14px;${i>0?'border-top:1px solid var(--th-border-soft)':''}${isMe?'background:rgba(245,197,24,.07) !important':''}">
+    return `<div class="${rankClass(i)} ${isMe?'me-row':''}" style="padding:12px 14px;${i>0?'border-top:1px solid var(--th-border-soft)':''}">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
         <div style="display:flex;flex-direction:column;align-items:center;min-width:30px">
           <div style="font-family:'Anton',Impact,sans-serif;font-size:16px;color:#f5c518;line-height:1">${i+1}</div>
@@ -2291,7 +2295,7 @@ function renderTable(){
         </div>
         <div style="flex-shrink:0;cursor:pointer" onclick="showPlayerProfile(${p.id})">${logoSVG(p.logo,38)}</div>
         <div style="flex:1;min-width:0">
-          <div style="font-family:'Anton',Impact,sans-serif;font-size:14px;color:#f5c518;letter-spacing:.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:5px">${esc(p.teamName)} ${fire(p)}</div>
+          <div style="font-family:'Anton',Impact,sans-serif;font-size:14px;color:#f5c518;letter-spacing:.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:5px">${esc(p.teamName)} ${fire(p)}${isMe?'<span class="me-pill">YOU</span>':''}</div>
           <div style="font-family:'Oswald',sans-serif;font-size:11px;color:var(--th-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</div>
         </div>
         <div style="text-align:right;flex-shrink:0">
@@ -2347,17 +2351,18 @@ function renderGroups(){
   const ownerView=S.groupOwnerView||false;
   const ownerMap={};
   if(S.players) S.players.forEach(p=>(p.teams||[]).forEach(t=>{ownerMap[t.n]=p;}));
-  // Build standings from S.matches
+  // Build standings from S.matches (apply canonicalTeam as defense in depth)
   const standing={};
   S.matches.forEach(m=>{
     if(m.hScore==null)return;
-    [m.home,m.away].forEach(n=>{if(!standing[n])standing[n]={p:0,w:0,d:0,l:0,gf:0,ga:0,pts:0};});
-    standing[m.home].p++;standing[m.away].p++;
-    standing[m.home].gf+=m.hScore;standing[m.home].ga+=m.aScore;
-    standing[m.away].gf+=m.aScore;standing[m.away].ga+=m.hScore;
-    if(m.hScore>m.aScore){standing[m.home].w++;standing[m.home].pts+=3;standing[m.away].l++;}
-    else if(m.hScore<m.aScore){standing[m.away].w++;standing[m.away].pts+=3;standing[m.home].l++;}
-    else{standing[m.home].d++;standing[m.away].d++;standing[m.home].pts++;standing[m.away].pts++;}
+    const h=canonicalTeam(m.home),a=canonicalTeam(m.away);
+    [h,a].forEach(n=>{if(!standing[n])standing[n]={p:0,w:0,d:0,l:0,gf:0,ga:0,pts:0};});
+    standing[h].p++;standing[a].p++;
+    standing[h].gf+=m.hScore;standing[h].ga+=m.aScore;
+    standing[a].gf+=m.aScore;standing[a].ga+=m.hScore;
+    if(m.hScore>m.aScore){standing[h].w++;standing[h].pts+=3;standing[a].l++;}
+    else if(m.hScore<m.aScore){standing[a].w++;standing[a].pts+=3;standing[h].l++;}
+    else{standing[h].d++;standing[a].d++;standing[h].pts++;standing[a].pts++;}
   });
   return `
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
@@ -2378,7 +2383,7 @@ function renderGroups(){
           return sb.pts-sa.pts||(sb.gf-sb.ga)-(sa.gf-sa.ga);
         }).map((t,i)=>{
           const owner=ownerMap[t.n];
-          const st=standing[t.n]||{p:0,pts:0};
+          const st=standing[t.n]||{p:0,w:0,d:0,l:0,pts:0};
           return`<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;${i>0?'border-top:1px solid rgba(30,58,128,.3)':''}">
             <div style="display:flex;align-items:center;gap:6px;min-width:0;flex:1">
               <span style="font-size:16px;line-height:1;flex-shrink:0">${t.f}</span>
@@ -2388,8 +2393,8 @@ function renderGroups(){
               </div>
               ${ownerView&&owner?`<div style="flex-shrink:0;margin-left:4px">${logoSVG(owner.logo,18)}</div>`:''}
             </div>
-            <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;margin-left:8px">
-              <span style="font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-secondary)">P${st.p}</span>
+            <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;margin-left:8px">
+              <span style="font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-secondary)" title="Played-Win-Draw-Loss · GF:GA">${st.p}P · ${st.w}-${st.d}-${st.l}</span>
               <span style="font-family:'Anton',Impact,sans-serif;font-size:13px;color:#f5c518">${st.pts}</span>
             </div>
           </div>`;
