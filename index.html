@@ -120,7 +120,7 @@ select:focus{outline:none;border-color:#f5c518}
 </head>
 <body>
 <div class="site-header" onclick="if(S.phase==='setup'){S.onboardScreen='home';sv();render();}" style="cursor:pointer">
-  <div style="position:absolute;top:8px;right:12px;font-family:'Anton',Impact,sans-serif;font-size:12px;color:#f5c518;letter-spacing:2px;padding:4px 10px;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);border-radius:4px">🫐 ELDERBERRY · 12 JUN</div>
+  <div style="position:absolute;top:8px;right:12px;font-family:'Anton',Impact,sans-serif;font-size:12px;color:#f5c518;letter-spacing:2px;padding:4px 10px;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);border-radius:4px">🟠 PERSIMMON · 13 JUN</div>
   <div class="site-logo">Official Sweepstake Edition</div>
   <div class="site-title">World Cup 2026</div>
 </div>
@@ -2448,28 +2448,99 @@ function getLiveBanner(){
     if(m.hScore==null)return false; // not started yet
     const kickoff=new Date(m.kickoff).getTime();
     const elapsed=now-kickoff;
-    return elapsed>=0&&elapsed<120*60*1000; // started, within 120 mins
+    return elapsed>=0&&elapsed<150*60*1000; // started, within 150 mins (room for ET)
   });
   if(!live)return '';
-  const elapsed=Math.floor((now-new Date(live.kickoff).getTime())/60000);
-  const ownerMap={};
-  S.players?.forEach(p=>(p.teams||[]).forEach(t=>{ownerMap[t.n]=p;}));
-  const hOwner=ownerMap[live.home];
-  const aOwner=ownerMap[live.away];
-  const leader=hOwner&&aOwner?hOwner.matchPts+hOwner.scorerPts>aOwner.matchPts+aOwner.scorerPts?hOwner:aOwner:hOwner||aOwner||null;
-  const leaderName=leader?esc(leader.name):'';
+  // Calculate GAME minute, not elapsed minute, accounting for 15-min halftime
+  const elapsedMin=Math.floor((now-new Date(live.kickoff).getTime())/60000);
+  let displayMin;
+  if(elapsedMin<=45) displayMin=`${elapsedMin}'`;
+  else if(elapsedMin<=60) displayMin='HT';
+  else if(elapsedMin<=105) displayMin=`${elapsedMin-15}'`;
+  else if(elapsedMin<=120) displayMin='FT';
+  else displayMin='AET';
   const bannerScore=live.hScore!=null?`${live.hScore}-${live.aScore}`:'vs';
-  return `<div class="live-banner" onclick="setTab('today')" style="cursor:pointer;position:sticky;top:0;z-index:999;background:linear-gradient(90deg,rgba(248,113,113,.15),rgba(248,113,113,.05));border-bottom:2px solid #f87171;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;border-radius:6px;animation:liveflash 2s ease-in-out infinite">
-    <div style="display:flex;align-items:center;gap:10px;flex:1">
-      <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#f87171;animation:livepulse 1.5s ease-in-out infinite"></span>
-      <span style="font-family:'Oswald',sans-serif;font-size:12px;color:#f87171;letter-spacing:2px">LIVE</span>
-      <span style="font-family:'Anton',Impact,sans-serif;font-size:13px;color:var(--th-text);min-width:0">${esc(live.home)} ${bannerScore} ${esc(live.away)}</span>
+  return `<div class="live-banner" onclick="showLiveDetail('${live.id}')" style="cursor:pointer;position:sticky;top:0;z-index:999;background:linear-gradient(90deg,rgba(248,113,113,.15),rgba(248,113,113,.05));border-bottom:2px solid #f87171;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;border-radius:6px;animation:liveflash 2s ease-in-out infinite">
+    <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
+      <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#f87171;animation:livepulse 1.5s ease-in-out infinite;flex-shrink:0"></span>
+      <span style="font-family:'Oswald',sans-serif;font-size:12px;color:#f87171;letter-spacing:2px;flex-shrink:0">LIVE</span>
+      <span style="font-family:'Anton',Impact,sans-serif;font-size:13px;color:var(--th-text);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${live.homeF||''} ${esc(live.home)} ${bannerScore} ${esc(live.away)} ${live.awayF||''}</span>
     </div>
-    <div style="display:flex;align-items:center;gap:10px;font-size:11px;color:var(--th-muted)">
-      <span style="letter-spacing:1px">${elapsed}'</span>
-      ${leaderName?`<span style="color:#4ade80;letter-spacing:.5px">🔥 ${leaderName}</span>`:''}
+    <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--th-muted);flex-shrink:0">
+      <span style="letter-spacing:1px;font-family:'Anton',Impact,sans-serif;font-size:13px;color:#f5c518">${displayMin}</span>
+      <span style="font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-muted);letter-spacing:.5px">tap for stats</span>
     </div>
   </div>`;
+}
+
+function showLiveDetail(matchId){
+  const m=S.matches.find(x=>String(x.id)===String(matchId));
+  if(!m)return;
+  const matchGoals=(S.goals||[]).filter(g=>String(g.match_id)===String(matchId)).sort((a,b)=>(a.minute||0)-(b.minute||0));
+  const homeGoals=matchGoals.filter(g=>g.team===m.home||canonicalTeam(g.team)===m.home);
+  const awayGoals=matchGoals.filter(g=>g.team===m.away||canonicalTeam(g.team)===m.away);
+  const ownerMap={};
+  S.players?.forEach(p=>(p.teams||[]).forEach(t=>{ownerMap[t.n]=p;}));
+  const hO=ownerMap[m.home],aO=ownerMap[m.away];
+  const now=Date.now();
+  const elapsedMin=Math.floor((now-new Date(m.kickoff).getTime())/60000);
+  let displayMin;
+  if(m.hScore==null)displayMin='—';
+  else if(elapsedMin<=45)displayMin=`${elapsedMin}'`;
+  else if(elapsedMin<=60)displayMin='HT';
+  else if(elapsedMin<=105)displayMin=`${elapsedMin-15}'`;
+  else if(elapsedMin<=120)displayMin='FT';
+  else displayMin='AET';
+  const goalRow=(g,side)=>{
+    const isOwn=g.player_name?.toLowerCase().includes('og');
+    return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-family:'Oswald',sans-serif;font-size:12px;${side==='home'?'':'flex-direction:row-reverse;text-align:right'}">
+      <span style="font-family:'Anton',Impact,sans-serif;font-size:11px;color:#f5c518;min-width:28px">${g.minute?g.minute+"'":''}</span>
+      <span style="flex:1;color:var(--th-text)">⚽ ${esc(g.player_name||'Unknown')}${isOwn?' <span style="color:#f87171;font-size:10px">(OG)</span>':''}</span>
+    </div>`;
+  };
+  document.querySelectorAll('.live-detail-overlay').forEach(o=>o.remove());
+  const o=document.createElement('div');
+  o.className='live-detail-overlay profile-overlay';
+  o.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:10000;display:flex;align-items:center;justify-content:center;padding:14px;backdrop-filter:blur(8px);overflow-y:auto';
+  o.onclick=(e)=>{if(e.target===o)o.remove();};
+  o.innerHTML=`<div style="background:var(--th-card);border:1px solid rgba(248,113,113,.4);border-radius:12px;max-width:520px;width:100%;padding:20px;margin:auto">
+    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:14px">
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
+          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#f87171;animation:livepulse 1.5s ease-in-out infinite"></span>
+          <span style="font-family:'Oswald',sans-serif;font-size:11px;color:#f87171;letter-spacing:2px">${m.hScore!=null?'LIVE':'UPCOMING'}</span>
+          <span style="font-family:'Anton',Impact,sans-serif;font-size:14px;color:#f5c518;letter-spacing:1px">${displayMin}</span>
+        </div>
+        <div style="font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-muted);letter-spacing:1px">${new Date(m.kickoff).toLocaleString('en-GB',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'Europe/London'})}</div>
+      </div>
+      <button onclick="this.closest('.live-detail-overlay').remove()" style="background:none;border:none;color:var(--th-muted);font-size:22px;cursor:pointer;padding:0 4px">×</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:14px;align-items:center;margin-bottom:18px">
+      <div style="text-align:center">
+        <div style="font-size:46px;line-height:1;margin-bottom:4px">${m.homeF||'⚪'}</div>
+        <div style="font-family:'Anton',Impact,sans-serif;font-size:15px;color:var(--th-text);letter-spacing:.5px;cursor:pointer" onclick="showTeamProfile('${esc(m.home)}')">${esc(m.home)}</div>
+        ${hO?`<div style="display:inline-flex;align-items:center;gap:5px;margin-top:5px;cursor:pointer" onclick="showPlayerProfile(${hO.id})">${logoSVG(hO.logo,20)}<span style="font-family:'Oswald',sans-serif;font-size:11px;color:var(--th-muted)">${esc(hO.name)}</span></div>`:''}
+      </div>
+      <div style="font-family:'Anton',Impact,sans-serif;font-size:36px;color:#f5c518;letter-spacing:2px;line-height:1">${m.hScore!=null?`${m.hScore}-${m.aScore}`:'vs'}</div>
+      <div style="text-align:center">
+        <div style="font-size:46px;line-height:1;margin-bottom:4px">${m.awayF||'⚪'}</div>
+        <div style="font-family:'Anton',Impact,sans-serif;font-size:15px;color:var(--th-text);letter-spacing:.5px;cursor:pointer" onclick="showTeamProfile('${esc(m.away)}')">${esc(m.away)}</div>
+        ${aO?`<div style="display:inline-flex;align-items:center;gap:5px;margin-top:5px;cursor:pointer" onclick="showPlayerProfile(${aO.id})">${logoSVG(aO.logo,20)}<span style="font-family:'Oswald',sans-serif;font-size:11px;color:var(--th-muted)">${esc(aO.name)}</span></div>`:''}
+      </div>
+    </div>
+    ${matchGoals.length>0?`<div style="background:rgba(74,222,128,.06);border:1px solid rgba(74,222,128,.25);border-radius:8px;padding:12px;margin-bottom:10px">
+      <div style="font-family:'Oswald',sans-serif;font-size:10px;color:#4ade80;letter-spacing:1.5px;margin-bottom:8px;text-align:center">⚽ GOAL SCORERS</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div>${homeGoals.length?homeGoals.map(g=>goalRow(g,'home')).join(''):'<div style="font-family:\'Oswald\',sans-serif;font-size:11px;color:var(--th-muted);text-align:center;padding:8px">—</div>'}</div>
+        <div>${awayGoals.length?awayGoals.map(g=>goalRow(g,'away')).join(''):'<div style="font-family:\'Oswald\',sans-serif;font-size:11px;color:var(--th-muted);text-align:center;padding:8px">—</div>'}</div>
+      </div>
+    </div>`:m.hScore!=null&&m.hScore===0&&m.aScore===0?'<div style="font-family:\'Oswald\',sans-serif;font-size:12px;color:var(--th-muted);text-align:center;padding:14px">No goals yet</div>':'<div style="font-family:\'Oswald\',sans-serif;font-size:12px;color:var(--th-muted);text-align:center;padding:14px">Goal data syncing...</div>'}
+    <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+      <button onclick="this.closest('.live-detail-overlay').remove();discussMatch('${m.id}')" style="background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);color:#f5c518;font-family:'Oswald',sans-serif;font-size:11px;padding:6px 12px;border-radius:5px;cursor:pointer;letter-spacing:1px">💬 Match thread</button>
+      <button onclick="forceSync();" style="background:rgba(96,165,250,.12);border:1px solid rgba(96,165,250,.35);color:#60a5fa;font-family:'Oswald',sans-serif;font-size:11px;padding:6px 12px;border-radius:5px;cursor:pointer;letter-spacing:1px">🔄 Refresh data</button>
+    </div>
+  </div>`;
+  document.body.appendChild(o);
 }
 
 function generateDailyDigest(){
@@ -2517,7 +2588,7 @@ function renderDone(root){
   root.innerHTML=`
   <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px">
     <div><div style="font-family:'Anton',Impact,sans-serif;font-size:26px;letter-spacing:2px;background:linear-gradient(180deg,var(--th-text) 30%,#f5c518 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">WC 2026 Sweepstake</div><div style="font-family:'Oswald',sans-serif;font-size:12px;color:var(--th-secondary);letter-spacing:2px;margin-top:2px">Draw Complete · 11 June 2026</div></div>
-    <div style="display:flex;gap:6px">${adminBtn}<button class="btn-ghost" onclick="goHome()" style="font-size:11px">🏠 Home</button>${isAdmin()&&localStorage.getItem('wc26x_backup')?`<button class="btn-ghost" onclick="restoreBackup()" style="font-size:11px;border-color:rgba(248,113,113,.4);color:#f87171">↩ Restore</button>`:''}${isAdmin()?`<button class="btn-ghost" onclick="reset()" style="font-size:11px">Reset</button>`:''}</div>
+    <div style="display:flex;gap:6px">${adminBtn}<button class="btn-ghost" onclick="forceSync()" title="Refresh latest scores from server" style="font-size:11px">🔄 Refresh</button><button class="btn-ghost" onclick="goHome()" style="font-size:11px">🏠 Home</button>${isAdmin()&&localStorage.getItem('wc26x_backup')?`<button class="btn-ghost" onclick="restoreBackup()" style="font-size:11px;border-color:rgba(248,113,113,.4);color:#f87171">↩ Restore</button>`:''}${isAdmin()?`<button class="btn-ghost" onclick="reset()" style="font-size:11px">Reset</button>`:''}</div>
   </div>
   ${logBar}
   <div class="tabs">${tabHtml}</div>
