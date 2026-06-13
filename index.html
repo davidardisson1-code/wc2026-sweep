@@ -2630,9 +2630,13 @@ function showLiveDetail(matchId){
       <span style="flex:1;color:var(--th-text)">⚽ ${esc(g.player_name||'Unknown')}${isOwn?' <span style="color:#f87171;font-size:10px">(OG)</span>':''}</span>
     </div>`;
   };
-  // Determine empty-state message
+  // Determine empty-state message based on kickoff time, not just hScore
+  // (a kicked-off match may still have null hScore if poll.js hasn't run yet)
+  const kickoffMs=new Date(m.kickoff).getTime();
+  const hasKickedOff=Date.now()>=kickoffMs;
   const totalGoalsInScore=(m.hScore||0)+(m.aScore||0);
-  const emptyMsg=m.hScore==null?'Match not started yet':
+  const emptyMsg=!hasKickedOff?'Match not started yet':
+    m.hScore==null?'Match in progress — waiting for score data from API…':
     totalGoalsInScore===0?'No goals yet — 0-0':
     matchGoals.length<totalGoalsInScore?`Score shows ${totalGoalsInScore} goals but scorer data still syncing from API…`:
     'No goals yet';
@@ -2646,7 +2650,7 @@ function showLiveDetail(matchId){
       <div>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
           <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#f87171;animation:livepulse 1.5s ease-in-out infinite"></span>
-          <span style="font-family:'Oswald',sans-serif;font-size:11px;color:#f87171;letter-spacing:2px">${isMatchOver(m)?'FULL TIME':m.hScore!=null?'LIVE':'UPCOMING'}</span>
+          <span style="font-family:'Oswald',sans-serif;font-size:11px;color:#f87171;letter-spacing:2px">${isMatchOver(m)?'FULL TIME':hasKickedOff?'LIVE':'UPCOMING'}</span>
           <span style="font-family:'Anton',Impact,sans-serif;font-size:14px;color:#f5c518;letter-spacing:1px">${displayMin}</span>
         </div>
         <div style="font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-muted);letter-spacing:1px">${new Date(m.kickoff).toLocaleString('en-GB',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'Europe/London'})}</div>
