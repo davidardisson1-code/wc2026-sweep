@@ -120,7 +120,7 @@ select:focus{outline:none;border-color:#f5c518}
 </head>
 <body>
 <div class="site-header" onclick="if(S.phase==='setup'){S.onboardScreen='home';sv();render();}" style="cursor:pointer">
-  <div style="position:absolute;top:8px;right:12px;font-family:'Anton',Impact,sans-serif;font-size:12px;color:#f5c518;letter-spacing:2px;padding:4px 10px;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);border-radius:4px">🍋 YUZU · 13 JUN</div>
+  <div style="position:absolute;top:8px;right:12px;font-family:'Anton',Impact,sans-serif;font-size:12px;color:#f5c518;letter-spacing:2px;padding:4px 10px;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);border-radius:4px">🥭 MANGO · 13 JUN</div>
   <div class="site-logo">Official Sweepstake Edition</div>
   <div class="site-title">World Cup 2026</div>
 </div>
@@ -2487,18 +2487,19 @@ function renderDraw(root){
 function getLiveBanner(){
   if(!S.matches)return '';
   const now=Date.now();
-  // Find any match currently live. Prefer API status if available; otherwise use a wide window
-  // and STAY live (never claim FT) until either the score reflects a settled result with
-  // a long gap, or API status confirms it's over.
-  const live=S.matches.find(m=>{
+  // Find any match currently live. Prefer API status; otherwise show any match that
+  // has kicked off within the last 2.5 hours and isn't confirmed finished.
+  const candidates=S.matches.filter(m=>{
+    if(!m.kickoff)return false;
+    if(isMatchOver(m))return false;
     if(m.statusShort)return['1H','2H','ET','BT','HT','P','LIVE','SUSP','INT'].includes(m.statusShort);
-    if(m.hScore==null)return false;
     const kickoff=new Date(m.kickoff).getTime();
     const elapsed=now-kickoff;
-    // Without API status, assume "live" for up to 3 hours after kickoff (covers ET + pens + delays).
-    // We deliberately avoid claiming FT here since we can't verify it.
-    return elapsed>=0&&elapsed<180*60*1000;
+    return elapsed>=0&&elapsed<150*60*1000;
   });
+  // Prefer the most recently kicked-off match (most likely the active one)
+  candidates.sort((a,b)=>new Date(b.kickoff)-new Date(a.kickoff));
+  const live=candidates[0];
   if(!live)return '';
   // Try API-Football clock first, fall back to a cautious approximation that never says FT/AET
   let displayMin=fmtGameMin(live);
@@ -3048,6 +3049,19 @@ function renderBracket(){
   const ownerMap={};
   if(S.players)S.players.forEach(p=>(p.teams||[]).forEach(t=>{ownerMap[t.n]=p;}));
   const matchCard=(m)=>{
+    if(m._isTBCPlaceholder){
+      return `<div style="background:rgba(0,0,0,.15);border:1px dashed var(--th-border-soft);border-radius:8px;padding:9px;min-width:180px;opacity:.6">
+        <div style="font-family:'Oswald',sans-serif;font-size:9px;color:var(--th-secondary);letter-spacing:1px;margin-bottom:4px">TBC</div>
+        <div style="display:flex;align-items:center;gap:6px;font-family:'Oswald',sans-serif;font-size:12px;color:var(--th-secondary)">
+          <span style="font-size:16px">⚪</span>
+          <span style="flex:1;font-style:italic">TBC</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:3px;font-family:'Oswald',sans-serif;font-size:12px;color:var(--th-secondary)">
+          <span style="font-size:16px">⚪</span>
+          <span style="flex:1;font-style:italic">TBC</span>
+        </div>
+      </div>`;
+    }
     const hO=ownerMap[m.home],aO=ownerMap[m.away];
     const isFinished=isMatchOver(m);
     const ko=new Date(m.kickoff);
@@ -3113,9 +3127,31 @@ function renderBracket(){
     return 'Final';
   };
   const stages=['Round of 32','Round of 16','Quarter-finals','Semi-finals','3rd Place Final','Final'];
+  const expectedCounts={'Round of 32':16,'Round of 16':8,'Quarter-finals':4,'Semi-finals':2,'3rd Place Final':1,'Final':1};
   const byStage={};
   koMatches.forEach(m=>{const s=stageOf(m);(byStage[s]=byStage[s]||[]).push(m);});
-  Object.values(byStage).forEach(arr=>arr.sort((a,b)=>new Date(a.kickoff)-new Date(b.kickoff)));
+  // Pad each stage with TBC placeholder matches up to expected count
+  stages.forEach(s=>{
+    if(!byStage[s])byStage[s]=[];
+    const need=expectedCounts[s]-byStage[s].length;
+    for(let i=0;i<need;i++){
+      byStage[s].push({
+        id:`tbc-${s}-${i}`,
+        home:null,away:null,
+        homeF:'',awayF:'',
+        kickoff:null,
+        hScore:null,aScore:null,
+        _isTBCPlaceholder:true
+      });
+    }
+  });
+  Object.values(byStage).forEach(arr=>arr.sort((a,b)=>{
+    // Real matches (with kickoff) sorted first by kickoff; TBC at the end
+    if(a._isTBCPlaceholder&&!b._isTBCPlaceholder)return 1;
+    if(!a._isTBCPlaceholder&&b._isTBCPlaceholder)return -1;
+    if(a._isTBCPlaceholder&&b._isTBCPlaceholder)return 0;
+    return new Date(a.kickoff)-new Date(b.kickoff);
+  }));
   const stagesHtml=stages.filter(s=>byStage[s]?.length).map(s=>`
     <div class="mcard" style="margin-bottom:12px">
       <div class="card-head" style="font-size:13px;padding:8px 12px">${s} <span style="font-size:10px;font-weight:400;color:var(--th-secondary);letter-spacing:1px;margin-left:6px">${byStage[s].length} match${byStage[s].length>1?'es':''}</span></div>
