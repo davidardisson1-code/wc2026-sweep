@@ -120,7 +120,7 @@ select:focus{outline:none;border-color:#f5c518}
 </head>
 <body>
 <div class="site-header" onclick="if(S.phase==='setup'){S.onboardScreen='home';sv();render();}" style="cursor:pointer">
-  <div style="position:absolute;top:8px;right:12px;font-family:'Anton',Impact,sans-serif;font-size:12px;color:#f5c518;letter-spacing:2px;padding:4px 10px;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);border-radius:4px">🍊 UGLI · 13 JUN</div>
+  <div style="position:absolute;top:8px;right:12px;font-family:'Anton',Impact,sans-serif;font-size:12px;color:#f5c518;letter-spacing:2px;padding:4px 10px;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);border-radius:4px">🍋 YUZU · 13 JUN</div>
   <div class="site-logo">Official Sweepstake Edition</div>
   <div class="site-title">World Cup 2026</div>
 </div>
@@ -1152,7 +1152,9 @@ function isMatchOver(m){
   if(m.statusShort)return['FT','AET','PEN','PST','CANC','ABD','AWD','WO'].includes(m.statusShort);
   if(m.hScore==null)return false;
   const kickoff=new Date(m.kickoff).getTime();
-  return (Date.now()-kickoff)>=180*60*1000; // 3hr fallback only
+  // Realistic max duration: 90min + 15min HT + stoppage ≈ 110min for normal time,
+  // up to 120min+pens for knockouts with ET. 2hr15min covers both with margin.
+  return (Date.now()-kickoff)>=135*60*1000;
 }
 
 // Format the official game clock from API-Football status fields.
@@ -1203,6 +1205,8 @@ const TEAM_ALIASES={
 };
 function canonicalTeam(n){
   if(!n)return n;
+  // Don't try to canonicalize placeholder names like "Winner Match 123" or "TBD - ..."
+  if(/^(TBD|Winner|Runner-up|Loser|3rd Place)/i.test(n.trim()))return n;
   // Direct alias hit
   if(TEAM_ALIASES[n])return TEAM_ALIASES[n];
   // Try matching ALL_TEAMS directly
@@ -2836,7 +2840,6 @@ function setTodayView(myView){
 
 function renderTable(){
   if(S.loggedIn===null&&!isAdmin())return renderLoginGate('Log in to view the leaderboard.');
-  if(hasPendingPreds(S.loggedIn)&&!isAdmin())return `<div class="mcard"><div class="card-head">⚠️ Predictions Required</div><div class="card-body"><p style="font-family:'Oswald',sans-serif;font-size:14px;color:var(--th-muted);line-height:1.6;margin-bottom:16px">You have upcoming matches to predict before you can see the table.</p><button class="btn-gold" onclick="setTab('predict')">Go to Predictions →</button></div></div>`;
   const adv=S.leaderboardAdv||false;
   // Build tier breakdowns once and use for tiebreaker
   const playerStats=S.players.map(p=>{
@@ -3049,22 +3052,22 @@ function renderBracket(){
     const isFinished=isMatchOver(m);
     const ko=new Date(m.kickoff);
     const isLocked=isFinished||(m.kickoff&&new Date(m.kickoff).getTime()<=Date.now());
-    const isTBD=!m.home||!m.away||(m.home&&m.home.startsWith('TBD'))||(m.away&&m.away.startsWith('TBD'));
+    const isTBD=!m.home||!m.away||/^(TBD|Winner|Runner-up|Loser|3rd Place)/i.test((m.home||'').trim())||/^(TBD|Winner|Runner-up|Loser|3rd Place)/i.test((m.away||'').trim());
     const myKoPicks=S.loggedIn!=null?(S.koPredictions?.[S.loggedIn]||{}):{};
     const myPick=myKoPicks['match_'+m.id];
     const actualWinner=isFinished?(m.hScore>m.aScore?m.home:m.aScore>m.hScore?m.away:'DRAW'):null;
     const pickResult=myPick&&actualWinner?(myPick===actualWinner?'correct':actualWinner==='DRAW'?'draw':'wrong'):null;
     return `<div style="background:rgba(0,0,0,.3);border:1px solid var(--th-border-soft);border-radius:8px;padding:9px;min-width:180px;${isFinished?'border-color:#f5c518':''}">
-      <div style="font-family:'Oswald',sans-serif;font-size:9px;color:var(--th-secondary);letter-spacing:1px;margin-bottom:4px">${ko.toLocaleDateString('en-GB',{day:'numeric',month:'short',timeZone:'Europe/London'})} ${ko.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/London'})}</div>
+      <div style="font-family:'Oswald',sans-serif;font-size:9px;color:var(--th-secondary);letter-spacing:1px;margin-bottom:4px">${isTBD?'TBC':`${ko.toLocaleDateString('en-GB',{day:'numeric',month:'short',timeZone:'Europe/London'})} ${ko.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/London'})}`}</div>
       <div style="display:flex;align-items:center;gap:6px;font-family:'Oswald',sans-serif;font-size:12px;${isFinished&&m.hScore>m.aScore?'font-weight:700;color:#f5c518':isFinished?'color:var(--th-secondary)':''}">
         <span style="font-size:16px">${m.homeF||'⚪'}</span>
-        <span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.home)||'TBD'}</span>
+        <span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${m.home&&m.home.startsWith('TBD')?'font-style:italic;color:var(--th-secondary)':''}">${m.home?esc(m.home):'TBC'}</span>
         ${hO?`<span style="cursor:pointer" onclick="showPlayerProfile(${hO.id})">${logoSVG(hO.logo,16)}</span>`:''}
         ${isFinished?`<span style="font-family:'Anton',Impact,sans-serif;font-size:13px">${m.hScore}</span>`:''}
       </div>
       <div style="display:flex;align-items:center;gap:6px;margin-top:3px;font-family:'Oswald',sans-serif;font-size:12px;${isFinished&&m.aScore>m.hScore?'font-weight:700;color:#f5c518':isFinished?'color:var(--th-secondary)':''}">
         <span style="font-size:16px">${m.awayF||'⚪'}</span>
-        <span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.away)||'TBD'}</span>
+        <span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${m.away&&m.away.startsWith('TBD')?'font-style:italic;color:var(--th-secondary)':''}">${m.away?esc(m.away):'TBC'}</span>
         ${aO?`<span style="cursor:pointer" onclick="showPlayerProfile(${aO.id})">${logoSVG(aO.logo,16)}</span>`:''}
         ${isFinished?`<span style="font-family:'Anton',Impact,sans-serif;font-size:13px">${m.aScore}</span>`:''}
       </div>
