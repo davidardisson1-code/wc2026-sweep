@@ -120,7 +120,7 @@ select:focus{outline:none;border-color:#f5c518}
 </head>
 <body>
 <div class="site-header" onclick="if(S.phase==='setup'){S.onboardScreen='home';sv();render();}" style="cursor:pointer">
-  <div style="position:absolute;top:8px;right:12px;font-family:'Anton',Impact,sans-serif;font-size:12px;color:#f5c518;letter-spacing:2px;padding:4px 10px;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);border-radius:4px">🍐 QUINCE · 13 JUN</div>
+  <div style="position:absolute;top:8px;right:12px;font-family:'Anton',Impact,sans-serif;font-size:12px;color:#f5c518;letter-spacing:2px;padding:4px 10px;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);border-radius:4px">🍒 RAMBUTAN · 13 JUN</div>
   <div class="site-logo">Official Sweepstake Edition</div>
   <div class="site-title">World Cup 2026</div>
 </div>
@@ -2503,6 +2503,70 @@ function getLiveBanner(){
   </div>`;
 }
 
+function showAllPredictions(matchId){
+  const m=S.matches.find(x=>String(x.id)===String(matchId));
+  if(!m||!S.players)return;
+  const matchLocked=m.hScore!=null||(m.kickoff&&new Date(m.kickoff).getTime()<=Date.now());
+  // Build prediction list per player
+  const rows=S.players.map(p=>{
+    const pred=S.predictions?.[p.id]?.[m.id];
+    return{p,pred};
+  });
+  // Sort: people who predicted first, then those who didn't
+  rows.sort((a,b)=>{
+    if(a.pred&&!b.pred)return -1;
+    if(!a.pred&&b.pred)return 1;
+    return 0;
+  });
+  const predicted=rows.filter(r=>r.pred);
+  const missing=rows.filter(r=>!r.pred);
+  const predRow=({p,pred})=>{
+    const isFinished=m.hScore!=null;
+    const exact=isFinished&&pred.h===m.hScore&&pred.a===m.aScore;
+    const result=isFinished&&!exact&&Math.sign(pred.h-pred.a)===Math.sign(m.hScore-m.aScore);
+    const c=exact?'#4ade80':result?'#f5c518':isFinished?'#f87171':'var(--th-text)';
+    const tag=exact?'✓ +4':result?'✓ +2':isFinished?'✗':'';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;background:rgba(0,0,0,.2);margin-bottom:5px">
+      <div style="flex-shrink:0;cursor:pointer" onclick="document.querySelector('.allpreds-overlay')?.remove();showPlayerProfile(${p.id})">${logoSVG(p.logo,28)}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-family:'Oswald',sans-serif;font-size:12px;color:var(--th-text);font-weight:600">${esc(p.name)}</div>
+        <div style="font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-muted)">${esc(p.teamName)}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-family:'Anton',Impact,sans-serif;font-size:18px;color:${c};letter-spacing:1px">${pred.h}-${pred.a}</div>
+        ${tag?`<div style="font-family:'Oswald',sans-serif;font-size:10px;color:${c};letter-spacing:1px">${tag}</div>`:''}
+      </div>
+    </div>`;
+  };
+  const missingRow=({p})=>{
+    const locked=matchLocked;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:6px 10px;opacity:.5">
+      <div style="flex-shrink:0">${logoSVG(p.logo,22)}</div>
+      <div style="flex:1;font-family:'Oswald',sans-serif;font-size:11px;color:var(--th-muted)">${esc(p.name)}</div>
+      <div style="font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-muted);letter-spacing:1px">${locked?'🔒 no pick':'pending'}</div>
+    </div>`;
+  };
+  document.querySelectorAll('.allpreds-overlay').forEach(o=>o.remove());
+  const o=document.createElement('div');
+  o.className='allpreds-overlay profile-overlay';
+  o.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:10000;display:flex;align-items:center;justify-content:center;padding:14px;backdrop-filter:blur(8px);overflow-y:auto';
+  o.onclick=(e)=>{if(e.target===o)o.remove();};
+  const scoreLine=m.hScore!=null?`${m.hScore}-${m.aScore}`:'vs';
+  o.innerHTML=`<div style="background:var(--th-card);border:1px solid rgba(96,165,250,.4);border-radius:12px;max-width:460px;width:100%;padding:20px;margin:auto;max-height:85vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
+      <div>
+        <div style="font-family:'Anton',Impact,sans-serif;font-size:16px;color:#60a5fa;letter-spacing:2px">EVERYONE'S PREDICTIONS</div>
+        <div style="font-family:'Oswald',sans-serif;font-size:12px;color:var(--th-text);margin-top:4px">${m.homeF||''} ${esc(m.home)} ${scoreLine} ${esc(m.away)} ${m.awayF||''}</div>
+      </div>
+      <button onclick="this.closest('.allpreds-overlay').remove()" style="background:none;border:none;color:var(--th-muted);font-size:22px;cursor:pointer;padding:0 4px">×</button>
+    </div>
+    ${matchLocked?'':`<div style="font-family:'Oswald',sans-serif;font-size:11px;color:var(--th-muted);text-align:center;margin-bottom:10px;letter-spacing:.5px">⚠️ Only locked-in predictions visible after kickoff</div>`}
+    ${predicted.length>0?predicted.map(predRow).join(''):'<div style="font-family:\'Oswald\',sans-serif;font-size:12px;color:var(--th-muted);text-align:center;padding:20px">No predictions yet</div>'}
+    ${missing.length>0?`<div style="font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-muted);letter-spacing:1.5px;margin:14px 0 6px;text-align:center">— ${matchLocked?'NO PREDICTION':'STILL TO PREDICT'} —</div>${missing.map(missingRow).join('')}`:''}
+  </div>`;
+  document.body.appendChild(o);
+}
+
 function showLiveDetail(matchId){
   const m=S.matches.find(x=>String(x.id)===String(matchId));
   if(!m)return;
@@ -2590,6 +2654,7 @@ function showLiveDetail(matchId){
       </div>
     </div>`:`<div style="font-family:'Oswald',sans-serif;font-size:12px;color:var(--th-muted);text-align:center;padding:14px">${esc(emptyMsg)}</div>`}
     <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+      <button onclick="this.closest('.live-detail-overlay').remove();showAllPredictions('${m.id}')" style="background:rgba(96,165,250,.12);border:1px solid rgba(96,165,250,.35);color:#60a5fa;font-family:'Oswald',sans-serif;font-size:11px;padding:6px 12px;border-radius:5px;cursor:pointer;letter-spacing:1px">🔮 All predictions</button>
       <button onclick="this.closest('.live-detail-overlay').remove();discussMatch('${m.id}')" style="background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);color:#f5c518;font-family:'Oswald',sans-serif;font-size:11px;padding:6px 12px;border-radius:5px;cursor:pointer;letter-spacing:1px">💬 Match thread</button>
       <button onclick="forceSync();" style="background:rgba(96,165,250,.12);border:1px solid rgba(96,165,250,.35);color:#60a5fa;font-family:'Oswald',sans-serif;font-size:11px;padding:6px 12px;border-radius:5px;cursor:pointer;letter-spacing:1px">🔄 Refresh data</button>
     </div>
@@ -2725,7 +2790,7 @@ function renderToday(){
       ${hO||aO?`<div style="font-family:'Oswald',sans-serif;font-size:11px;color:var(--th-muted);text-align:center;letter-spacing:.5px">${hO?esc(hO.name):''}${hO&&aO?' vs ':''} ${aO?esc(aO.name):''}</div>`:''}
       ${!hasScore&&myPred?(()=>{const locked=new Date(m.kickoff).getTime()<=Date.now();return`<div style="font-family:'Oswald',sans-serif;font-size:11px;color:#4ade80;text-align:center;margin-top:4px;letter-spacing:.5px;display:flex;align-items:center;justify-content:center;gap:6px"><span>My prediction: <span style="font-weight:600">${myPred.h}-${myPred.a}</span></span>${locked?`<span title="Locked — game has started" style="color:#94afd4">🔒</span>`:`<button onclick="editPrediction('${m.id}')" title="Edit prediction" style="background:rgba(245,197,24,.15);border:1px solid rgba(245,197,24,.4);color:#f5c518;font-size:10px;padding:2px 7px;border-radius:4px;cursor:pointer;font-family:'Oswald',sans-serif;letter-spacing:.5px">✎ Edit</button>`}</div>`})():''}
       ${!hasScore&&!myPred&&pid!=null?(()=>{const locked=new Date(m.kickoff).getTime()<=Date.now();return locked?`<div style="text-align:center;margin-top:6px;font-family:'Oswald',sans-serif;font-size:11px;color:#94afd4">🔒 No prediction made</div>`:`<div style="text-align:center;margin-top:6px"><button class="btn-sm" onclick="editPrediction('${m.id}')" style="font-size:10px;padding:3px 10px">Predict</button></div>`})():''}
-      ${!hasScore&&(hO||aO)&&new Date(m.kickoff).getTime()>Date.now()?`<div style="text-align:center;margin-top:6px;display:flex;gap:6px;justify-content:center"><button onclick="showWhatIf('${m.id}')" title="See projected leaderboard changes" style="background:rgba(96,165,250,.12);border:1px solid rgba(96,165,250,.35);color:#60a5fa;font-family:'Oswald',sans-serif;font-size:10px;padding:3px 9px;border-radius:4px;cursor:pointer;letter-spacing:1px">🔮 What if?</button><button onclick="discussMatch('${m.id}')" title="Open match thread" style="background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);color:#f5c518;font-family:'Oswald',sans-serif;font-size:10px;padding:3px 9px;border-radius:4px;cursor:pointer;letter-spacing:1px">💬 Discuss</button></div>`:hasScore?`<div style="text-align:center;margin-top:6px"><button onclick="discussMatch('${m.id}')" title="Open match thread" style="background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);color:#f5c518;font-family:'Oswald',sans-serif;font-size:10px;padding:3px 9px;border-radius:4px;cursor:pointer;letter-spacing:1px">💬 Discuss</button></div>`:''}
+      ${!hasScore&&(hO||aO)&&new Date(m.kickoff).getTime()>Date.now()?`<div style="text-align:center;margin-top:6px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap"><button onclick="showWhatIf('${m.id}')" title="See projected leaderboard changes" style="background:rgba(96,165,250,.12);border:1px solid rgba(96,165,250,.35);color:#60a5fa;font-family:'Oswald',sans-serif;font-size:10px;padding:3px 9px;border-radius:4px;cursor:pointer;letter-spacing:1px">🔮 What if?</button><button onclick="showAllPredictions('${m.id}')" title="See what everyone predicted" style="background:rgba(168,85,247,.12);border:1px solid rgba(168,85,247,.35);color:#c084fc;font-family:'Oswald',sans-serif;font-size:10px;padding:3px 9px;border-radius:4px;cursor:pointer;letter-spacing:1px">📊 All preds</button><button onclick="discussMatch('${m.id}')" title="Open match thread" style="background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);color:#f5c518;font-family:'Oswald',sans-serif;font-size:10px;padding:3px 9px;border-radius:4px;cursor:pointer;letter-spacing:1px">💬 Discuss</button></div>`:hasScore?`<div style="text-align:center;margin-top:6px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap"><button onclick="showAllPredictions('${m.id}')" title="See what everyone predicted" style="background:rgba(168,85,247,.12);border:1px solid rgba(168,85,247,.35);color:#c084fc;font-family:'Oswald',sans-serif;font-size:10px;padding:3px 9px;border-radius:4px;cursor:pointer;letter-spacing:1px">📊 All preds</button><button onclick="discussMatch('${m.id}')" title="Open match thread" style="background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);color:#f5c518;font-family:'Oswald',sans-serif;font-size:10px;padding:3px 9px;border-radius:4px;cursor:pointer;letter-spacing:1px">💬 Discuss</button></div>`:''}
     </div>`;
   };
   const toggleHtml=`<div style="display:flex;align-items:center;gap:6px;padding:10px 14px;background:rgba(0,0,0,.15);border-radius:8px;margin-bottom:12px">
@@ -2989,11 +3054,24 @@ function renderBracket(){
         ${isFinished?`<span style="font-family:'Anton',Impact,sans-serif;font-size:13px">${m.aScore}</span>`:''}
       </div>
       ${S.loggedIn!=null&&!isTBD?`<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--th-border-soft)">
-        ${isLocked?`<div style="font-family:'Oswald',sans-serif;font-size:10px;color:${pickResult==='correct'?'#4ade80':pickResult==='wrong'?'#f87171':'var(--th-muted)'};letter-spacing:1px">PICK: ${esc(myPick||'—')}${pickResult==='correct'?' ✓':pickResult==='wrong'?' ✗':''}</div>`:`<select onchange="saveKoPred('match_${m.id}',this.value)" style="background:rgba(0,0,0,.3);border:1px solid var(--th-border-soft);border-radius:4px;color:var(--th-text);font-family:'Oswald',sans-serif;font-size:10px;padding:4px 6px;width:100%;letter-spacing:.5px">
-          <option value="">— Pick winner —</option>
-          <option ${myPick===m.home?'selected':''}>${esc(m.home)}</option>
-          <option ${myPick===m.away?'selected':''}>${esc(m.away)}</option>
-        </select>`}
+        ${(()=>{
+          const myPred=S.predictions?.[S.loggedIn]?.[m.id];
+          const matchLocked=isFinished||(m.kickoff&&new Date(m.kickoff).getTime()<=Date.now());
+          if(matchLocked){
+            // Show pred result vs actual
+            if(myPred){
+              const exact=isFinished&&myPred.h===m.hScore&&myPred.a===m.aScore;
+              const result=isFinished&&!exact&&Math.sign(myPred.h-myPred.a)===Math.sign(m.hScore-m.aScore);
+              const c=exact?'#4ade80':result?'#f5c518':isFinished?'#f87171':'var(--th-muted)';
+              return `<div style="font-family:'Oswald',sans-serif;font-size:10px;color:${c};letter-spacing:1px">YOUR PRED: ${myPred.h}-${myPred.a}${exact?' ✓ +4':result?' ✓ +2':isFinished?' ✗':''}</div>`;
+            }
+            return `<div style="font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-muted);letter-spacing:1px">🔒 No prediction</div>`;
+          }
+          return `<div style="display:flex;align-items:center;gap:4px;justify-content:center">
+            <span style="font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-muted);letter-spacing:1px">PREDICT:</span>
+            <button onclick="editPrediction('${m.id}')" style="background:rgba(245,197,24,.15);border:1px solid rgba(245,197,24,.4);color:#f5c518;font-family:'Oswald',sans-serif;font-size:10px;padding:2px 8px;border-radius:4px;cursor:pointer">${myPred?`${myPred.h}-${myPred.a} ✎`:'+ Score'}</button>
+          </div>`;
+        })()}
       </div>`:''}
     </div>`;
   };
@@ -3040,19 +3118,17 @@ function renderKoPredictions(){
   const locked=firstKo&&new Date(firstKo.kickoff).getTime()<=Date.now();
   const allTeams=[...new Set(S.matches.flatMap(m=>[m.home,m.away]).filter(n=>n&&!n.startsWith('TBD')))];
   const slots=[
-    {key:'champ',label:'🏆 Tournament Winner',bonus:'+15pts'},
-    {key:'runner',label:'🥈 Runner-up',bonus:'+8pts'},
-    {key:'third',label:'🥉 Third place',bonus:'+5pts'},
-    {key:'topScorer',label:'⚽ Golden Boot scorer',bonus:'+5pts',isText:true}
+    {key:'champ',label:'🏆 Tournament Winner'},
+    {key:'runner',label:'🥈 Runner-up'},
+    {key:'third',label:'🥉 Third place'},
+    {key:'topScorer',label:'⚽ Golden Boot scorer',isText:true}
   ];
   return `<div class="mcard" style="margin-bottom:14px">
     <div class="card-head">🔮 Your Bracket Predictions ${locked?'<span style="font-size:10px;color:var(--th-muted);font-weight:400;letter-spacing:1px;margin-left:6px">🔒 LOCKED</span>':'<span style="font-size:10px;color:#4ade80;font-weight:400;letter-spacing:1px;margin-left:6px">LOCKS WHEN R16 STARTS</span>'}</div>
     <div class="card-body" style="display:flex;flex-direction:column;gap:10px">
+      <div style="font-family:'Oswald',sans-serif;font-size:11px;color:var(--th-muted);margin-bottom:4px;line-height:1.5">Just for fun — these don't count toward the leaderboard. Score predictions for R16+ matches happen on each match card.</div>
       ${slots.map(s=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
-        <div>
-          <div style="font-family:'Oswald',sans-serif;font-size:13px;color:var(--th-text)">${s.label}</div>
-          <div style="font-family:'Oswald',sans-serif;font-size:10px;color:#f5c518;letter-spacing:1px">${s.bonus}</div>
-        </div>
+        <div style="font-family:'Oswald',sans-serif;font-size:13px;color:var(--th-text)">${s.label}</div>
         ${locked?`<div style="font-family:'Oswald',sans-serif;font-size:13px;color:#f5c518">${esc(koPreds[s.key]||'—')}</div>`:s.isText?
           `<input type="text" id="kopred_${s.key}" value="${esc(koPreds[s.key]||'')}" placeholder="Player name" oninput="saveKoPred('${s.key}',this.value)" style="background:rgba(0,0,0,.3);border:1px solid var(--th-border-soft);border-radius:6px;color:var(--th-text);font-family:'Oswald',sans-serif;font-size:12px;padding:6px 10px;width:160px">`:
           `<select onchange="saveKoPred('${s.key}',this.value)" style="background:rgba(0,0,0,.3);border:1px solid var(--th-border-soft);border-radius:6px;color:var(--th-text);font-family:'Oswald',sans-serif;font-size:12px;padding:6px 10px;width:170px">
