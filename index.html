@@ -3040,10 +3040,10 @@ function renderGroups(){
 function renderBracket(){
   if(!S.matches.length)return `<div class="mcard"><div class="card-head">🏆 Knockout Bracket</div><div class="card-body"><p style="font-family:'Oswald',sans-serif;font-size:13px;color:var(--th-muted)">Bracket fixtures loading...</p></div></div>`;
   const koMatches=S.matches.filter(m=>{
-    if(m.stage)return['Round of 16','Quarter-finals','Semi-finals','Final','3rd Place Final','Round of 32'].includes(m.stage);
-    if(m.round)return['Round of 16','Quarter-finals','Semi-finals','Final','3rd Place Final','Round of 32'].includes(m.round);
+    if(!m.kickoff)return false;
     const d=new Date(m.kickoff);
-    return d>new Date('2026-06-27');
+    // KO stage starts 28 June 2026 (group stage ends 27 June)
+    return d>=new Date('2026-06-28T00:00:00Z');
   });
   const ownerMap={};
   if(S.players)S.players.forEach(p=>(p.teams||[]).forEach(t=>{ownerMap[t.n]=p;}));
@@ -3052,7 +3052,12 @@ function renderBracket(){
     const isFinished=isMatchOver(m);
     const ko=new Date(m.kickoff);
     const isLocked=isFinished||(m.kickoff&&new Date(m.kickoff).getTime()<=Date.now());
-    const isTBD=!m.home||!m.away||/^(TBD|Winner|Runner-up|Loser|3rd Place)/i.test((m.home||'').trim())||/^(TBD|Winner|Runner-up|Loser|3rd Place)/i.test((m.away||'').trim());
+    // Group stage runs through 26 Jun. Until it finishes, ALL knockout matches show TBC
+    // regardless of what API-Football has written (it often pre-populates placeholder names
+    // from previous cycles or third-party assumptions).
+    const groupStageOver=Date.now()>=new Date('2026-06-27T00:00:00Z').getTime();
+    const explicitTBD=!m.home||!m.away||/^(TBD|Winner|Runner-up|Loser|3rd Place)/i.test((m.home||'').trim())||/^(TBD|Winner|Runner-up|Loser|3rd Place)/i.test((m.away||'').trim());
+    const isTBD=explicitTBD||!groupStageOver;
     const myKoPicks=S.loggedIn!=null?(S.koPredictions?.[S.loggedIn]||{}):{};
     const myPick=myKoPicks['match_'+m.id];
     const actualWinner=isFinished?(m.hScore>m.aScore?m.home:m.aScore>m.hScore?m.away:'DRAW'):null;
@@ -3060,16 +3065,16 @@ function renderBracket(){
     return `<div style="background:rgba(0,0,0,.3);border:1px solid var(--th-border-soft);border-radius:8px;padding:9px;min-width:180px;${isFinished?'border-color:#f5c518':''}">
       <div style="font-family:'Oswald',sans-serif;font-size:9px;color:var(--th-secondary);letter-spacing:1px;margin-bottom:4px">${isTBD?'TBC':`${ko.toLocaleDateString('en-GB',{day:'numeric',month:'short',timeZone:'Europe/London'})} ${ko.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/London'})}`}</div>
       <div style="display:flex;align-items:center;gap:6px;font-family:'Oswald',sans-serif;font-size:12px;${isFinished&&m.hScore>m.aScore?'font-weight:700;color:#f5c518':isFinished?'color:var(--th-secondary)':''}">
-        <span style="font-size:16px">${m.homeF||'⚪'}</span>
-        <span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${m.home&&m.home.startsWith('TBD')?'font-style:italic;color:var(--th-secondary)':''}">${m.home?esc(m.home):'TBC'}</span>
-        ${hO?`<span style="cursor:pointer" onclick="showPlayerProfile(${hO.id})">${logoSVG(hO.logo,16)}</span>`:''}
-        ${isFinished?`<span style="font-family:'Anton',Impact,sans-serif;font-size:13px">${m.hScore}</span>`:''}
+        <span style="font-size:16px">${isTBD?'⚪':(m.homeF||'⚪')}</span>
+        <span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${isTBD?'font-style:italic;color:var(--th-secondary)':''}">${isTBD?'TBC':esc(m.home)}</span>
+        ${!isTBD&&hO?`<span style="cursor:pointer" onclick="showPlayerProfile(${hO.id})">${logoSVG(hO.logo,16)}</span>`:''}
+        ${!isTBD&&isFinished?`<span style="font-family:'Anton',Impact,sans-serif;font-size:13px">${m.hScore}</span>`:''}
       </div>
       <div style="display:flex;align-items:center;gap:6px;margin-top:3px;font-family:'Oswald',sans-serif;font-size:12px;${isFinished&&m.aScore>m.hScore?'font-weight:700;color:#f5c518':isFinished?'color:var(--th-secondary)':''}">
-        <span style="font-size:16px">${m.awayF||'⚪'}</span>
-        <span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${m.away&&m.away.startsWith('TBD')?'font-style:italic;color:var(--th-secondary)':''}">${m.away?esc(m.away):'TBC'}</span>
-        ${aO?`<span style="cursor:pointer" onclick="showPlayerProfile(${aO.id})">${logoSVG(aO.logo,16)}</span>`:''}
-        ${isFinished?`<span style="font-family:'Anton',Impact,sans-serif;font-size:13px">${m.aScore}</span>`:''}
+        <span style="font-size:16px">${isTBD?'⚪':(m.awayF||'⚪')}</span>
+        <span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${isTBD?'font-style:italic;color:var(--th-secondary)':''}">${isTBD?'TBC':esc(m.away)}</span>
+        ${!isTBD&&aO?`<span style="cursor:pointer" onclick="showPlayerProfile(${aO.id})">${logoSVG(aO.logo,16)}</span>`:''}
+        ${!isTBD&&isFinished?`<span style="font-family:'Anton',Impact,sans-serif;font-size:13px">${m.aScore}</span>`:''}
       </div>
       ${S.loggedIn!=null&&!isTBD?`<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--th-border-soft)">
         ${(()=>{
@@ -3094,13 +3099,17 @@ function renderBracket(){
     </div>`;
   };
   const stageOf=(m)=>{
-    if(m.stage)return m.stage;
-    if(m.round)return m.round;
+    // Trust date over API label — API-Football mislabels early KO rounds as "Round of 16"
+    // when they're actually Round of 32 (48-team format: top 2 + 8 best 3rds = 32 advance).
+    // Official 2026 schedule:
+    //   R32: 28 Jun – 3 Jul  | R16: 4 – 7 Jul  | QF: 9 – 11 Jul
+    //   SF: 14 – 15 Jul       | 3rd: 18 Jul     | F: 19 Jul
     const d=new Date(m.kickoff);
-    if(d<new Date('2026-07-04'))return 'Round of 16';
-    if(d<new Date('2026-07-08'))return 'Quarter-finals';
-    if(d<new Date('2026-07-15'))return 'Semi-finals';
-    if(d<new Date('2026-07-19'))return '3rd Place Final';
+    if(d<new Date('2026-07-04T00:00:00Z'))return 'Round of 32';
+    if(d<new Date('2026-07-08T00:00:00Z'))return 'Round of 16';
+    if(d<new Date('2026-07-12T00:00:00Z'))return 'Quarter-finals';
+    if(d<new Date('2026-07-16T00:00:00Z'))return 'Semi-finals';
+    if(d<new Date('2026-07-19T00:00:00Z'))return '3rd Place Final';
     return 'Final';
   };
   const stages=['Round of 32','Round of 16','Quarter-finals','Semi-finals','3rd Place Final','Final'];
