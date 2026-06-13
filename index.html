@@ -120,7 +120,7 @@ select:focus{outline:none;border-color:#f5c518}
 </head>
 <body>
 <div class="site-header" onclick="if(S.phase==='setup'){S.onboardScreen='home';sv();render();}" style="cursor:pointer">
-  <div style="position:absolute;top:8px;right:12px;font-family:'Anton',Impact,sans-serif;font-size:12px;color:#f5c518;letter-spacing:2px;padding:4px 10px;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);border-radius:4px">🍒 RAMBUTAN · 13 JUN</div>
+  <div style="position:absolute;top:8px;right:12px;font-family:'Anton',Impact,sans-serif;font-size:12px;color:#f5c518;letter-spacing:2px;padding:4px 10px;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);border-radius:4px">🍊 UGLI · 13 JUN</div>
   <div class="site-logo">Official Sweepstake Edition</div>
   <div class="site-title">World Cup 2026</div>
 </div>
@@ -881,7 +881,7 @@ function scorePred(ph,pa,ah,aa){
 function getPredTotal(pid){
   let correct=0,result=0,wrong=0,total=0;
   S.matches.forEach(m=>{
-    if(m.hScore==null)return;
+    if(!isMatchOver(m))return;
     const pred=S.predictions[pid]?.[m.id];if(!pred)return;
     const{pts,type}=scorePred(pred.h,pred.a,m.hScore,m.aScore);
     total+=pts;if(type==='correct')correct++;else if(type==='result')result++;else if(type==='wrong')wrong++;
@@ -1140,6 +1140,19 @@ async function syncMatches(){
     recalcPoints();
     sv();render();
   }catch(e){console.warn('syncMatches failed',e);}
+}
+
+// Returns true ONLY if we have confirmed (via API status) that the match has ended.
+// A non-null score does NOT mean finished — it could be a live score (e.g. 1-1 in the 60th min).
+// Falls back to a generous 3-hour-after-kickoff window if status data isn't available,
+// since marking predictions ✗ prematurely (while a match is still live) is worse than
+// briefly delaying the ✗/✓ marker after a match genuinely ends.
+function isMatchOver(m){
+  if(!m)return false;
+  if(m.statusShort)return['FT','AET','PEN','PST','CANC','ABD','AWD','WO'].includes(m.statusShort);
+  if(m.hScore==null)return false;
+  const kickoff=new Date(m.kickoff).getTime();
+  return (Date.now()-kickoff)>=180*60*1000; // 3hr fallback only
 }
 
 // Format the official game clock from API-Football status fields.
@@ -1586,12 +1599,12 @@ function showPlayerProfile(playerId){
   let predCorrect=0,predResult=0;
   predEntries.forEach(([mid,pred])=>{
     const m=S.matches?.find(mch=>mch.id===mid||mch.id===+mid);
-    if(m&&m.hScore!=null){
+    if(m&&isMatchOver(m)){
       if(pred.h===m.hScore&&pred.a===m.aScore)predCorrect++;
       else if(Math.sign(pred.h-pred.a)===Math.sign(m.hScore-m.aScore))predResult++;
     }
   });
-  const settled=predEntries.filter(([mid])=>{const m=S.matches?.find(mch=>mch.id===mid||mch.id===+mid);return m&&m.hScore!=null;}).length;
+  const settled=predEntries.filter(([mid])=>{const m=S.matches?.find(mch=>mch.id===mid||mch.id===+mid);return m&&isMatchOver(m);}).length;
   const predAccuracy=settled>0?Math.round((predCorrect+predResult)/settled*100)+'%':'N/A';
   const predictions=predEntries;
   document.querySelectorAll('.profile-overlay').forEach(o=>o.remove());
@@ -1820,7 +1833,7 @@ function showComparison(p1id,p2id){
     let exactPreds=0,resultPreds=0;
     predEntries.forEach(([mid,pred])=>{
       const m=S.matches?.find(mch=>mch.id===mid||mch.id===+mid);
-      if(m&&m.hScore!=null){
+      if(m&&isMatchOver(m)){
         if(pred.h===m.hScore&&pred.a===m.aScore)exactPreds++;
         else if(Math.sign(pred.h-pred.a)===Math.sign(m.hScore-m.aScore))resultPreds++;
       }
@@ -2470,24 +2483,27 @@ function renderDraw(root){
 function getLiveBanner(){
   if(!S.matches)return '';
   const now=Date.now();
-  // Find any match currently live. Prefer API status if available; otherwise use 2hr window.
+  // Find any match currently live. Prefer API status if available; otherwise use a wide window
+  // and STAY live (never claim FT) until either the score reflects a settled result with
+  // a long gap, or API status confirms it's over.
   const live=S.matches.find(m=>{
     if(m.statusShort)return['1H','2H','ET','BT','HT','P','LIVE','SUSP','INT'].includes(m.statusShort);
     if(m.hScore==null)return false;
     const kickoff=new Date(m.kickoff).getTime();
     const elapsed=now-kickoff;
-    return elapsed>=0&&elapsed<150*60*1000;
+    // Without API status, assume "live" for up to 3 hours after kickoff (covers ET + pens + delays).
+    // We deliberately avoid claiming FT here since we can't verify it.
+    return elapsed>=0&&elapsed<180*60*1000;
   });
   if(!live)return '';
-  // Try API-Football clock first, fall back to elapsed-time approximation
+  // Try API-Football clock first, fall back to a cautious approximation that never says FT/AET
   let displayMin=fmtGameMin(live);
   if(!displayMin){
     const elapsedMin=Math.floor((now-new Date(live.kickoff).getTime())/60000);
     if(elapsedMin<=45)displayMin=`${elapsedMin}'`;
-    else if(elapsedMin<=60)displayMin='HT';
+    else if(elapsedMin<=60)displayMin='HT?';
     else if(elapsedMin<=105)displayMin=`${elapsedMin-15}'`;
-    else if(elapsedMin<=120)displayMin='FT';
-    else displayMin='AET';
+    else displayMin='LIVE'; // don't guess FT/AET without API confirmation
   }
   const bannerScore=live.hScore!=null?`${live.hScore}-${live.aScore}`:'vs';
   return `<div class="live-banner" onclick="showLiveDetail('${live.id}')" style="cursor:pointer;position:sticky;top:0;z-index:999;background:linear-gradient(90deg,rgba(248,113,113,.15),rgba(248,113,113,.05));border-bottom:2px solid #f87171;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;border-radius:6px;animation:liveflash 2s ease-in-out infinite">
@@ -2521,7 +2537,7 @@ function showAllPredictions(matchId){
   const predicted=rows.filter(r=>r.pred);
   const missing=rows.filter(r=>!r.pred);
   const predRow=({p,pred})=>{
-    const isFinished=m.hScore!=null;
+    const isFinished=isMatchOver(m);
     const exact=isFinished&&pred.h===m.hScore&&pred.a===m.aScore;
     const result=isFinished&&!exact&&Math.sign(pred.h-pred.a)===Math.sign(m.hScore-m.aScore);
     const c=exact?'#4ade80':result?'#f5c518':isFinished?'#f87171':'var(--th-text)';
@@ -2597,10 +2613,9 @@ function showLiveDetail(matchId){
     else{
       const elapsedMin=Math.floor((now-new Date(m.kickoff).getTime())/60000);
       if(elapsedMin<=45)displayMin=`${elapsedMin}'`;
-      else if(elapsedMin<=60)displayMin='HT';
+      else if(elapsedMin<=60)displayMin='HT?';
       else if(elapsedMin<=105)displayMin=`${elapsedMin-15}'`;
-      else if(elapsedMin<=120)displayMin='FT';
-      else displayMin='AET';
+      else displayMin='LIVE';
     }
   }
   const goalRow=(g,side)=>{
@@ -2626,7 +2641,7 @@ function showLiveDetail(matchId){
       <div>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
           <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#f87171;animation:livepulse 1.5s ease-in-out infinite"></span>
-          <span style="font-family:'Oswald',sans-serif;font-size:11px;color:#f87171;letter-spacing:2px">${m.hScore!=null?'LIVE':'UPCOMING'}</span>
+          <span style="font-family:'Oswald',sans-serif;font-size:11px;color:#f87171;letter-spacing:2px">${isMatchOver(m)?'FULL TIME':m.hScore!=null?'LIVE':'UPCOMING'}</span>
           <span style="font-family:'Anton',Impact,sans-serif;font-size:14px;color:#f5c518;letter-spacing:1px">${displayMin}</span>
         </div>
         <div style="font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-muted);letter-spacing:1px">${new Date(m.kickoff).toLocaleString('en-GB',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'Europe/London'})}</div>
@@ -2746,9 +2761,9 @@ function renderToday(){
   const allMatches=S.matches.filter(m=>m.kickoff);
   const filtered=myView&&me?allMatches.filter(m=>myTeamNames.includes(m.home)||myTeamNames.includes(m.away)):allMatches;
   const now=Date.now();
-  const past=filtered.filter(m=>m.hScore!=null).sort((a,b)=>new Date(b.kickoff)-new Date(a.kickoff));
-  const live=filtered.filter(m=>m.hScore==null&&new Date(m.kickoff).getTime()<=now+60000);
-  const upcoming=filtered.filter(m=>m.hScore==null&&new Date(m.kickoff).getTime()>now+60000).sort((a,b)=>new Date(a.kickoff)-new Date(b.kickoff));
+  const past=filtered.filter(m=>isMatchOver(m)).sort((a,b)=>new Date(b.kickoff)-new Date(a.kickoff));
+  const live=filtered.filter(m=>!isMatchOver(m)&&(m.hScore!=null||new Date(m.kickoff).getTime()<=now+60000));
+  const upcoming=filtered.filter(m=>m.hScore==null&&!isMatchOver(m)&&new Date(m.kickoff).getTime()>now+60000).sort((a,b)=>new Date(a.kickoff)-new Date(b.kickoff));
   const fmtKO=ko=>{
     const d=new Date(ko);
     const today=new Date().toLocaleDateString('en-CA',{timeZone:'Europe/London'});
@@ -3031,7 +3046,7 @@ function renderBracket(){
   if(S.players)S.players.forEach(p=>(p.teams||[]).forEach(t=>{ownerMap[t.n]=p;}));
   const matchCard=(m)=>{
     const hO=ownerMap[m.home],aO=ownerMap[m.away];
-    const isFinished=m.hScore!=null;
+    const isFinished=isMatchOver(m);
     const ko=new Date(m.kickoff);
     const isLocked=isFinished||(m.kickoff&&new Date(m.kickoff).getTime()<=Date.now());
     const isTBD=!m.home||!m.away||(m.home&&m.home.startsWith('TBD'))||(m.away&&m.away.startsWith('TBD'));
@@ -3325,7 +3340,7 @@ function renderPredTable(){
     // Process chronologically by kickoff
     const settledOrdered=entries.map(([mid,pred])=>{
       const m=S.matches?.find(mch=>mch.id===mid||mch.id===+mid);
-      if(!m||m.hScore==null)return null;
+      if(!m||!isMatchOver(m))return null;
       return{mid,pred,m};
     }).filter(Boolean).sort((a,b)=>new Date(a.m.kickoff)-new Date(b.m.kickoff));
     settled=settledOrdered.length;
@@ -3783,7 +3798,7 @@ function buildChatArea(){
     const mid=S_chatConvo.slice(6);
     const m=S.matches?.find(x=>String(x.id)===String(mid));
     if(m){
-      const score=m.hScore!=null?` · ${m.hScore}-${m.aScore} FT`:'';
+      const score=m.hScore!=null?` · ${m.hScore}-${m.aScore}${isMatchOver(m)?' FT':' LIVE'}`:'';
       title=`🏟️ ${m.homeF||''} ${esc(m.home)} vs ${esc(m.away)} ${m.awayF||''}${score}`;
     } else title='🏟️ Match thread';
   }
@@ -3809,7 +3824,7 @@ function renderChat(p){
     ...matchThreads.map(t=>{
       const m=t.match;
       const label=m?`${m.homeF||''} ${esc(m.home||'?')} vs ${esc(m.away||'?')} ${m.awayF||''}`:`Match ${t.id}`;
-      const sub=m?(m.hScore!=null?`${m.hScore}-${m.aScore} FT`:new Date(m.kickoff).toLocaleDateString('en-GB',{day:'numeric',month:'short',timeZone:'Europe/London'})):'';
+      const sub=m?(m.hScore!=null?`${m.hScore}-${m.aScore}${isMatchOver(m)?' FT':' LIVE'}`:new Date(m.kickoff).toLocaleDateString('en-GB',{day:'numeric',month:'short',timeZone:'Europe/London'})):'';
       return{key:'match:'+t.id,label,sub,icon:'🏟️'};
     })
   ];
