@@ -120,7 +120,7 @@ select:focus{outline:none;border-color:#f5c518}
 </head>
 <body>
 <div class="site-header" onclick="if(S.phase==='setup'){S.onboardScreen='home';sv();render();}" style="cursor:pointer">
-  <div style="position:absolute;top:8px;right:12px;font-family:'Anton',Impact,sans-serif;font-size:12px;color:#f5c518;letter-spacing:2px;padding:4px 10px;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);border-radius:4px">🟠 PERSIMMON · 13 JUN</div>
+  <div style="position:absolute;top:8px;right:12px;font-family:'Anton',Impact,sans-serif;font-size:12px;color:#f5c518;letter-spacing:2px;padding:4px 10px;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);border-radius:4px">🍐 QUINCE · 13 JUN</div>
   <div class="site-logo">Official Sweepstake Edition</div>
   <div class="site-title">World Cup 2026</div>
 </div>
@@ -1130,12 +1130,39 @@ async function syncMatches(){
       kickoff:m.kickoff,
       hScore:m.home_score??null,
       aScore:m.away_score??null,
-      round:m.round||null,stage:m.stage||null
+      round:m.round||null,stage:m.stage||null,
+      // Live status from API-Football (null if poll.js hasn't been updated yet)
+      statusShort:m.status_short||null,
+      statusElapsed:m.status_elapsed??null,
+      statusExtra:m.status_extra??null
     }));
     lastSyncAt=Date.now();
     recalcPoints();
     sv();render();
   }catch(e){console.warn('syncMatches failed',e);}
+}
+
+// Format the official game clock from API-Football status fields.
+// Returns null if no live data available, in which case the caller should fall back.
+function fmtGameMin(m){
+  if(!m||!m.statusShort)return null;
+  const e=m.statusElapsed,x=m.statusExtra;
+  const minWithStoppage=()=>x?`${e}+${x}'`:e!=null?`${e}'`:'';
+  switch(m.statusShort){
+    case '1H':case '2H':case 'ET':case 'LIVE':return minWithStoppage();
+    case 'HT':return 'HT';
+    case 'BT':return 'Break';
+    case 'P':case 'PEN':return 'Pens';
+    case 'FT':return 'FT';
+    case 'AET':return 'AET';
+    case 'SUSP':return 'SUSP';
+    case 'INT':return 'INT';
+    case 'PST':return 'PST';
+    case 'ABD':return 'ABD';
+    case 'CANC':return 'CANC';
+    case 'NS':case 'TBD':return null;
+    default:return e!=null?`${e}'`:null;
+  }
 }
 
 // Map API/external team names to canonical internal names
@@ -2443,22 +2470,25 @@ function renderDraw(root){
 function getLiveBanner(){
   if(!S.matches)return '';
   const now=Date.now();
-  // Find any match currently live (within 2 hours of now)
+  // Find any match currently live. Prefer API status if available; otherwise use 2hr window.
   const live=S.matches.find(m=>{
-    if(m.hScore==null)return false; // not started yet
+    if(m.statusShort)return['1H','2H','ET','BT','HT','P','LIVE','SUSP','INT'].includes(m.statusShort);
+    if(m.hScore==null)return false;
     const kickoff=new Date(m.kickoff).getTime();
     const elapsed=now-kickoff;
-    return elapsed>=0&&elapsed<150*60*1000; // started, within 150 mins (room for ET)
+    return elapsed>=0&&elapsed<150*60*1000;
   });
   if(!live)return '';
-  // Calculate GAME minute, not elapsed minute, accounting for 15-min halftime
-  const elapsedMin=Math.floor((now-new Date(live.kickoff).getTime())/60000);
-  let displayMin;
-  if(elapsedMin<=45) displayMin=`${elapsedMin}'`;
-  else if(elapsedMin<=60) displayMin='HT';
-  else if(elapsedMin<=105) displayMin=`${elapsedMin-15}'`;
-  else if(elapsedMin<=120) displayMin='FT';
-  else displayMin='AET';
+  // Try API-Football clock first, fall back to elapsed-time approximation
+  let displayMin=fmtGameMin(live);
+  if(!displayMin){
+    const elapsedMin=Math.floor((now-new Date(live.kickoff).getTime())/60000);
+    if(elapsedMin<=45)displayMin=`${elapsedMin}'`;
+    else if(elapsedMin<=60)displayMin='HT';
+    else if(elapsedMin<=105)displayMin=`${elapsedMin-15}'`;
+    else if(elapsedMin<=120)displayMin='FT';
+    else displayMin='AET';
+  }
   const bannerScore=live.hScore!=null?`${live.hScore}-${live.aScore}`:'vs';
   return `<div class="live-banner" onclick="showLiveDetail('${live.id}')" style="cursor:pointer;position:sticky;top:0;z-index:999;background:linear-gradient(90deg,rgba(248,113,113,.15),rgba(248,113,113,.05));border-bottom:2px solid #f87171;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;border-radius:6px;animation:liveflash 2s ease-in-out infinite">
     <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
@@ -2476,21 +2506,39 @@ function getLiveBanner(){
 function showLiveDetail(matchId){
   const m=S.matches.find(x=>String(x.id)===String(matchId));
   if(!m)return;
-  const matchGoals=(S.goals||[]).filter(g=>String(g.match_id)===String(matchId)).sort((a,b)=>(a.minute||0)-(b.minute||0));
-  const homeGoals=matchGoals.filter(g=>g.team===m.home||canonicalTeam(g.team)===m.home);
-  const awayGoals=matchGoals.filter(g=>g.team===m.away||canonicalTeam(g.team)===m.away);
+  const matchStart=new Date(m.kickoff).getTime();
+  // Match goals: try match_id first, fall back to team-name + time-window matching
+  const matchGoals=(S.goals||[]).filter(g=>{
+    const t=canonicalTeam(g.team);
+    if(t!==m.home&&t!==m.away)return false;
+    // Hard match: if both IDs known, they must match
+    if(g.match_id!=null&&matchId!=null&&String(g.match_id)===String(matchId))return true;
+    // Soft match: goal scored after this match's kickoff (within 3hr window)
+    if(g.created_at){
+      const gt=new Date(g.created_at).getTime();
+      if(gt>=matchStart&&gt<=matchStart+3*60*60*1000)return true;
+    }
+    // Last resort: g.match_id explicitly mismatches → exclude; otherwise include
+    return g.match_id==null;
+  }).sort((a,b)=>(a.minute||0)-(b.minute||0));
+  const homeGoals=matchGoals.filter(g=>canonicalTeam(g.team)===m.home);
+  const awayGoals=matchGoals.filter(g=>canonicalTeam(g.team)===m.away);
   const ownerMap={};
   S.players?.forEach(p=>(p.teams||[]).forEach(t=>{ownerMap[t.n]=p;}));
   const hO=ownerMap[m.home],aO=ownerMap[m.away];
   const now=Date.now();
-  const elapsedMin=Math.floor((now-new Date(m.kickoff).getTime())/60000);
-  let displayMin;
-  if(m.hScore==null)displayMin='—';
-  else if(elapsedMin<=45)displayMin=`${elapsedMin}'`;
-  else if(elapsedMin<=60)displayMin='HT';
-  else if(elapsedMin<=105)displayMin=`${elapsedMin-15}'`;
-  else if(elapsedMin<=120)displayMin='FT';
-  else displayMin='AET';
+  let displayMin=fmtGameMin(m);
+  if(!displayMin){
+    if(m.hScore==null)displayMin='—';
+    else{
+      const elapsedMin=Math.floor((now-new Date(m.kickoff).getTime())/60000);
+      if(elapsedMin<=45)displayMin=`${elapsedMin}'`;
+      else if(elapsedMin<=60)displayMin='HT';
+      else if(elapsedMin<=105)displayMin=`${elapsedMin-15}'`;
+      else if(elapsedMin<=120)displayMin='FT';
+      else displayMin='AET';
+    }
+  }
   const goalRow=(g,side)=>{
     const isOwn=g.player_name?.toLowerCase().includes('og');
     return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-family:'Oswald',sans-serif;font-size:12px;${side==='home'?'':'flex-direction:row-reverse;text-align:right'}">
@@ -2498,6 +2546,12 @@ function showLiveDetail(matchId){
       <span style="flex:1;color:var(--th-text)">⚽ ${esc(g.player_name||'Unknown')}${isOwn?' <span style="color:#f87171;font-size:10px">(OG)</span>':''}</span>
     </div>`;
   };
+  // Determine empty-state message
+  const totalGoalsInScore=(m.hScore||0)+(m.aScore||0);
+  const emptyMsg=m.hScore==null?'Match not started yet':
+    totalGoalsInScore===0?'No goals yet — 0-0':
+    matchGoals.length<totalGoalsInScore?`Score shows ${totalGoalsInScore} goals but scorer data still syncing from API…`:
+    'No goals yet';
   document.querySelectorAll('.live-detail-overlay').forEach(o=>o.remove());
   const o=document.createElement('div');
   o.className='live-detail-overlay profile-overlay';
@@ -2534,7 +2588,7 @@ function showLiveDetail(matchId){
         <div>${homeGoals.length?homeGoals.map(g=>goalRow(g,'home')).join(''):'<div style="font-family:\'Oswald\',sans-serif;font-size:11px;color:var(--th-muted);text-align:center;padding:8px">—</div>'}</div>
         <div>${awayGoals.length?awayGoals.map(g=>goalRow(g,'away')).join(''):'<div style="font-family:\'Oswald\',sans-serif;font-size:11px;color:var(--th-muted);text-align:center;padding:8px">—</div>'}</div>
       </div>
-    </div>`:m.hScore!=null&&m.hScore===0&&m.aScore===0?'<div style="font-family:\'Oswald\',sans-serif;font-size:12px;color:var(--th-muted);text-align:center;padding:14px">No goals yet</div>':'<div style="font-family:\'Oswald\',sans-serif;font-size:12px;color:var(--th-muted);text-align:center;padding:14px">Goal data syncing...</div>'}
+    </div>`:`<div style="font-family:'Oswald',sans-serif;font-size:12px;color:var(--th-muted);text-align:center;padding:14px">${esc(emptyMsg)}</div>`}
     <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
       <button onclick="this.closest('.live-detail-overlay').remove();discussMatch('${m.id}')" style="background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);color:#f5c518;font-family:'Oswald',sans-serif;font-size:11px;padding:6px 12px;border-radius:5px;cursor:pointer;letter-spacing:1px">💬 Match thread</button>
       <button onclick="forceSync();" style="background:rgba(96,165,250,.12);border:1px solid rgba(96,165,250,.35);color:#60a5fa;font-family:'Oswald',sans-serif;font-size:11px;padding:6px 12px;border-radius:5px;cursor:pointer;letter-spacing:1px">🔄 Refresh data</button>
