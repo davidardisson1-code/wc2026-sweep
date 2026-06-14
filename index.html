@@ -120,7 +120,7 @@ select:focus{outline:none;border-color:#f5c518}
 </head>
 <body>
 <div class="site-header" onclick="if(S.phase==='setup'){S.onboardScreen='home';sv();render();}" style="cursor:pointer">
-  <div style="position:absolute;top:8px;right:12px;font-family:'Anton',Impact,sans-serif;font-size:12px;color:#f5c518;letter-spacing:2px;padding:4px 10px;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);border-radius:4px">🥭 MANGO · 13 JUN</div>
+  <div style="position:absolute;top:8px;right:12px;font-family:'Anton',Impact,sans-serif;font-size:12px;color:#f5c518;letter-spacing:2px;padding:4px 10px;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);border-radius:4px">🥑 AVOCADO · 14 JUN</div>
   <div class="site-logo">Official Sweepstake Edition</div>
   <div class="site-title">World Cup 2026</div>
 </div>
@@ -288,11 +288,13 @@ function init(){
     }
     // Pre-match alert: any of MY teams playing in next 60 mins?
     showPreMatchAlertIfNeeded();
+    // Unseen match results for the current logged-in player
+    setTimeout(showPendingResults,800);
   });
   // RELIABILITY: re-sync data when user returns to the tab
   document.addEventListener('visibilitychange',()=>{
     if(document.visibilityState==='visible'&&sb){
-      syncMatches().then(()=>syncGoals());
+      syncMatches().then(()=>{syncGoals();setTimeout(showPendingResults,500);});
       showPreMatchAlertIfNeeded();
     }
   });
@@ -359,6 +361,124 @@ function showWhatIf(mid){
     }).join('')}
     <div style="font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-muted);text-align:center;margin-top:6px;letter-spacing:1px">PROJECTION ONLY · DOES NOT INCLUDE SCORER PICKS OR PREDICTIONS</div>
   </div>`;
+  document.body.appendChild(o);
+}
+
+function showPendingResults(){
+  if(S.loggedIn==null||!S.players||!S.matches)return;
+  const me=S.players[S.loggedIn];if(!me)return;
+  const myTeams=new Set((me.teams||[]).map(t=>t.n));
+  const seen=JSON.parse(localStorage.getItem('wc26x_seenResults')||'{}');
+  const meSeen=seen[me.name]||[];
+  // Find finished matches involving my teams, within last 7 days, not yet seen
+  const now=Date.now();
+  const candidates=S.matches.filter(m=>{
+    if(!isMatchOver(m))return false;
+    if(!m.kickoff)return false;
+    if(now-new Date(m.kickoff).getTime()>7*24*60*60*1000)return false;
+    if(!myTeams.has(m.home)&&!myTeams.has(m.away))return false;
+    if(meSeen.includes(String(m.id)))return false;
+    return true;
+  }).sort((a,b)=>new Date(a.kickoff)-new Date(b.kickoff));
+  if(!candidates.length)return;
+  // Show first one in queue; subsequent ones show after dismissing the previous
+  showResultModal(candidates[0],()=>{
+    const s2=JSON.parse(localStorage.getItem('wc26x_seenResults')||'{}');
+    s2[me.name]=[...(s2[me.name]||[]),String(candidates[0].id)];
+    try{localStorage.setItem('wc26x_seenResults',JSON.stringify(s2));}catch(_){}
+    // Recurse to show the next one
+    setTimeout(showPendingResults,300);
+  });
+}
+
+function showResultModal(m,onClose){
+  const me=S.players[S.loggedIn];
+  const iAmHome=me.teams.some(t=>t.n===m.home);
+  const iAmAway=me.teams.some(t=>t.n===m.away);
+  const myScore=iAmHome?m.hScore:m.aScore;
+  const oppScore=iAmHome?m.aScore:m.hScore;
+  const myTeam=iAmHome?m.home:m.away;
+  const oppTeam=iAmHome?m.away:m.home;
+  const myFlag=iAmHome?m.homeF:m.awayF;
+  const oppFlag=iAmHome?m.awayF:m.homeF;
+  // Result: did I win, lose, or draw
+  const isDraw=myScore===oppScore;
+  const iWon=myScore>oppScore;
+  // Find opponent owner (might or might not exist)
+  const oppOwner=S.players.find(p=>p.id!==me.id&&(p.teams||[]).some(t=>t.n===oppTeam));
+  // Look up the taunt DM if I lost
+  let taunt='';
+  if(!iWon&&!isDraw&&oppOwner){
+    const dm=(chatMessages||[]).find(msg=>msg.player_name===oppOwner.name&&msg.to_player===me.name&&(msg.message||'').includes(`[taunt:${m.id}]`));
+    if(dm)taunt=stripMatchTag(dm.message);
+    else taunt='UNLUCCCKKKKKYYYY';
+  }
+
+  // Build animation overlay
+  let bgAnim='',headerText='',headerColor='',accentBorder='';
+  if(iWon){
+    headerText='YOU WIN! 🎉';headerColor='#4ade80';accentBorder='#4ade80';
+    bgAnim=Array.from({length:60}).map((_,i)=>{
+      const colors=['#f5c518','#4ade80','#60a5fa','#f87171','#c084fc','#fb923c'];
+      const c=colors[i%colors.length];
+      const left=Math.random()*100;
+      const delay=Math.random()*2;
+      const dur=2.5+Math.random()*2;
+      const rot=Math.random()*360;
+      return `<div style="position:absolute;top:-20px;left:${left}%;width:9px;height:14px;background:${c};animation:confettiFall ${dur}s ${delay}s linear infinite;transform:rotate(${rot}deg)"></div>`;
+    }).join('');
+  } else if(isDraw){
+    headerText='DRAW 🤝';headerColor='#f5c518';accentBorder='#f5c518';
+    bgAnim=`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none"><div style="font-size:140px;opacity:.08;animation:handshakeBounce 2.5s ease-in-out infinite">🤝</div></div>`;
+  } else {
+    headerText='YOU LOST 💀';headerColor='#f87171';accentBorder='#f87171';
+    bgAnim=Array.from({length:40}).map(()=>{
+      const left=Math.random()*100;
+      const delay=Math.random()*1.5;
+      const dur=0.9+Math.random()*0.6;
+      return `<div style="position:absolute;top:-20px;left:${left}%;width:2px;height:14px;background:linear-gradient(to bottom,transparent,#60a5fa,transparent);animation:rainFall ${dur}s ${delay}s linear infinite;opacity:.6"></div>`;
+    }).join('');
+  }
+
+  // Inject keyframes once
+  if(!document.getElementById('resultAnims')){
+    const st=document.createElement('style');st.id='resultAnims';
+    st.textContent=`
+@keyframes confettiFall{to{transform:translateY(110vh) rotate(720deg)}}
+@keyframes rainFall{to{transform:translateY(110vh)}}
+@keyframes handshakeBounce{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
+@keyframes resultPop{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}`;
+    document.head.appendChild(st);
+  }
+
+  document.querySelectorAll('.result-overlay').forEach(o=>o.remove());
+  const o=document.createElement('div');
+  o.className='result-overlay';
+  o.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:10001;display:flex;align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(10px);overflow:hidden';
+  o.innerHTML=`
+    ${bgAnim}
+    <div style="position:relative;background:var(--th-card);border:2px solid ${accentBorder};border-radius:14px;max-width:440px;width:100%;padding:26px;text-align:center;animation:resultPop .6s cubic-bezier(.34,1.56,.64,1) both;box-shadow:0 20px 60px rgba(0,0,0,.6)">
+      <div style="font-family:'Anton',Impact,sans-serif;font-size:32px;letter-spacing:3px;color:${headerColor};line-height:1;margin-bottom:18px">${headerText}</div>
+      <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:14px;align-items:center;margin-bottom:18px">
+        <div>
+          <div style="font-size:46px;line-height:1;margin-bottom:4px">${myFlag||'⚪'}</div>
+          <div style="font-family:'Anton',Impact,sans-serif;font-size:14px;color:var(--th-text);letter-spacing:.5px">${esc(myTeam)}</div>
+          <div style="font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-muted);letter-spacing:1px;margin-top:2px">YOU</div>
+        </div>
+        <div style="font-family:'Anton',Impact,sans-serif;font-size:38px;color:${headerColor};letter-spacing:2px;line-height:1">${myScore} - ${oppScore}</div>
+        <div>
+          <div style="font-size:46px;line-height:1;margin-bottom:4px">${oppFlag||'⚪'}</div>
+          <div style="font-family:'Anton',Impact,sans-serif;font-size:14px;color:var(--th-text);letter-spacing:.5px">${esc(oppTeam)}</div>
+          <div style="font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-muted);letter-spacing:1px;margin-top:2px">${oppOwner?esc(oppOwner.name).toUpperCase():''}</div>
+        </div>
+      </div>
+      ${taunt?`<div style="margin-bottom:18px;padding:12px;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);border-radius:8px">
+        <div style="font-family:'Oswald',sans-serif;font-size:10px;color:#f87171;letter-spacing:1.5px;margin-bottom:6px">💬 ${esc(oppOwner?.name||'')} says:</div>
+        <div style="font-family:'Oswald',sans-serif;font-size:15px;color:var(--th-text);font-style:italic;line-height:1.4">"${esc(taunt)}"</div>
+      </div>`:''}
+      <button onclick="this.closest('.result-overlay').remove();window._resultOnClose&&window._resultOnClose()" style="background:${headerColor};border:none;color:#0a0e1a;font-family:'Anton',Impact,sans-serif;font-size:13px;letter-spacing:2px;padding:10px 26px;border-radius:6px;cursor:pointer">CONTINUE</button>
+    </div>`;
+  window._resultOnClose=onClose;
   document.body.appendChild(o);
 }
 
@@ -737,7 +857,10 @@ function login(idx,pin){
   S.loggedIn=idx;
   S.myPin=p.pin||pin;
   if(p.theme)applyTheme(p.theme);
-  sv();render();return true;
+  sv();render();
+  // Show any unseen match results for this player (one at a time)
+  setTimeout(()=>showPendingResults(),400);
+  return true;
 }
 function goHome(){
   S.loggedIn=null;
@@ -3762,7 +3885,16 @@ async function initChat(){
 const MATCH_THREAD_RE=/^\[#match:([^\]]+)\]\s?/;
 function isMatchThreadMsg(m){return !m.to_player && MATCH_THREAD_RE.test(m.message||'');}
 function getMatchThreadId(m){const x=(m.message||'').match(MATCH_THREAD_RE);return x?x[1]:null;}
-function stripMatchTag(text){return (text||'').replace(MATCH_THREAD_RE,'');}
+function stripMatchTag(text){
+  // Strip all hidden marker tags used for dedup/routing: [#match:X], [ref:X:Y], [goal:X], [taunt:X], [digest:X]
+  return (text||'')
+    .replace(MATCH_THREAD_RE,'')
+    .replace(/\s*\[ref:[^\]]+\]/g,'')
+    .replace(/\s*\[goal:[^\]]+\]/g,'')
+    .replace(/\s*\[taunt:[^\]]+\]/g,'')
+    .replace(/\s*\[digest:[^\]]+\]/g,'')
+    .trim();
+}
 function getActiveMatchThreads(){
   // Find all match IDs that have at least one message
   const ids=new Set();
