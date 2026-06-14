@@ -120,7 +120,7 @@ select:focus{outline:none;border-color:#f5c518}
 </head>
 <body>
 <div class="site-header" onclick="if(S.phase==='setup'){S.onboardScreen='home';sv();render();}" style="cursor:pointer">
-  <div style="position:absolute;top:8px;right:12px;font-family:'Anton',Impact,sans-serif;font-size:12px;color:#f5c518;letter-spacing:2px;padding:4px 10px;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);border-radius:4px">🥑 AVOCADO · 14 JUN</div>
+  <div style="position:absolute;top:8px;right:12px;font-family:'Anton',Impact,sans-serif;font-size:12px;color:#f5c518;letter-spacing:2px;padding:4px 10px;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);border-radius:4px">🟣 PASSIONFRUIT · 14 JUN</div>
   <div class="site-logo">Official Sweepstake Edition</div>
   <div class="site-title">World Cup 2026</div>
 </div>
@@ -367,8 +367,19 @@ function showWhatIf(mid){
 function showPendingResults(){
   if(S.loggedIn==null||!S.players||!S.matches)return;
   const me=S.players[S.loggedIn];if(!me)return;
+  // Gate: show What's New first if not yet seen by this player
+  const wnKey='wc26x_seenWhatsNew_v1';
+  const wnSeen=JSON.parse(localStorage.getItem(wnKey)||'{}');
+  if(!wnSeen[me.name]){
+    showWhatsNew(()=>{
+      wnSeen[me.name]=true;
+      try{localStorage.setItem(wnKey,JSON.stringify(wnSeen));}catch(_){}
+      setTimeout(showPendingResults,300);
+    });
+    return;
+  }
   const myTeams=new Set((me.teams||[]).map(t=>t.n));
-  const seen=JSON.parse(localStorage.getItem('wc26x_seenResults')||'{}');
+  const seen=JSON.parse(localStorage.getItem('wc26x_seenResults_v2')||'{}');
   const meSeen=seen[me.name]||[];
   // Find finished matches involving my teams, within last 7 days, not yet seen
   const now=Date.now();
@@ -383,12 +394,61 @@ function showPendingResults(){
   if(!candidates.length)return;
   // Show first one in queue; subsequent ones show after dismissing the previous
   showResultModal(candidates[0],()=>{
-    const s2=JSON.parse(localStorage.getItem('wc26x_seenResults')||'{}');
+    const s2=JSON.parse(localStorage.getItem('wc26x_seenResults_v2')||'{}');
     s2[me.name]=[...(s2[me.name]||[]),String(candidates[0].id)];
-    try{localStorage.setItem('wc26x_seenResults',JSON.stringify(s2));}catch(_){}
+    try{localStorage.setItem('wc26x_seenResults_v2',JSON.stringify(s2));}catch(_){}
     // Recurse to show the next one
     setTimeout(showPendingResults,300);
   });
+}
+
+function showWhatsNew(onClose){
+  const features=[
+    {icon:'🎉',name:'Result modals',desc:'Win = confetti party. Loss = rain + a personal taunt from the winner. Draw = handshake. Pops on login.'},
+    {icon:'💬',name:'Win-message DMs',desc:'When your team beats someone else\'s, they get a personalised DM dunking on them. Custom or default UNLUCCCKKKKKYYYY.'},
+    {icon:'🏆',name:'KO Bracket tab',desc:'Full R32 → Final visualisation. Predict winners, score predictions, Golden Boot, and tournament winner.'},
+    {icon:'🔴',name:'Live game modal',desc:'Tap any live match to see real-time clock, current scorers with the owner who picked them, and stats.'},
+    {icon:'🧵',name:'Match threads',desc:'Every match has its own chat thread. Argue tactically, take credit, talk smack — all in context.'},
+    {icon:'🔮',name:'What-If simulator',desc:'Tap 🔮 on any upcoming match to see exactly how your leaderboard position would change at every possible score.'},
+    {icon:'📈',name:'Form dots + sparkline',desc:'See W/D/L history on the leaderboard and a points-trajectory sparkline in your player profile.'},
+    {icon:'⚽',name:'Pre-match alerts',desc:'Toast notification 60 minutes before any of your teams kick off. No more missed games.'},
+    {icon:'📊',name:'All Predictions modal',desc:'Tap 📊 on any match to see what every player predicted. Crow when you nailed it.'},
+    {icon:'🔥',name:'Streaks & accuracy badges',desc:'Hot streak counters and accuracy % on the Pred Table. Bragging rights now have receipts.'}
+  ];
+  const list=features.map((f,i)=>`
+    <div style="display:flex;gap:12px;padding:11px 0;${i<features.length-1?'border-bottom:1px solid rgba(245,197,24,.12)':''}">
+      <div style="font-size:22px;line-height:1;flex-shrink:0;width:30px;text-align:center">${f.icon}</div>
+      <div style="flex:1">
+        <div style="font-family:'Anton',Impact,sans-serif;font-size:14px;letter-spacing:1px;color:var(--th-text);margin-bottom:2px">${f.name}</div>
+        <div style="font-family:'Oswald',sans-serif;font-size:12px;color:var(--th-secondary);line-height:1.35">${f.desc}</div>
+      </div>
+    </div>`).join('');
+
+  // Reuse the result-anim keyframes (resultPop) if not yet injected
+  if(!document.getElementById('resultAnims')){
+    const st=document.createElement('style');st.id='resultAnims';
+    st.textContent=`@keyframes resultPop{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.04)}100%{transform:scale(1);opacity:1}}`;
+    document.head.appendChild(st);
+  }
+
+  document.querySelectorAll('.whatsnew-overlay').forEach(o=>o.remove());
+  const o=document.createElement('div');
+  o.className='whatsnew-overlay';
+  o.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:10002;display:flex;align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(10px);overflow-y:auto';
+  o.innerHTML=`
+    <div style="position:relative;background:var(--th-card);border:2px solid #f5c518;border-radius:14px;max-width:480px;width:100%;padding:24px;animation:resultPop .55s cubic-bezier(.34,1.56,.64,1) both;box-shadow:0 20px 60px rgba(0,0,0,.6);max-height:90vh;overflow-y:auto">
+      <div style="text-align:center;margin-bottom:6px">
+        <div style="font-family:'Oswald',sans-serif;font-size:10px;color:#f5c518;letter-spacing:2.5px">🟣 PASSIONFRUIT · 14 JUN</div>
+      </div>
+      <div style="font-family:'Anton',Impact,sans-serif;font-size:28px;letter-spacing:2px;color:#f5c518;text-align:center;line-height:1;margin-bottom:6px">WHAT'S NEW</div>
+      <div style="font-family:'Oswald',sans-serif;font-size:12px;color:var(--th-secondary);text-align:center;margin-bottom:14px">10 upgrades since the tournament kicked off</div>
+      <div>${list}</div>
+      <div style="text-align:center;margin-top:18px">
+        <button onclick="this.closest('.whatsnew-overlay').remove();window._whatsnewOnClose&&window._whatsnewOnClose()" style="background:#f5c518;border:none;color:#0a0e1a;font-family:'Anton',Impact,sans-serif;font-size:13px;letter-spacing:2px;padding:11px 30px;border-radius:6px;cursor:pointer">LET'S GO</button>
+      </div>
+    </div>`;
+  window._whatsnewOnClose=onClose;
+  document.body.appendChild(o);
 }
 
 function showResultModal(m,onClose){
