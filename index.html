@@ -3934,7 +3934,7 @@ function renderChatPanel(){
     const mine=!isBot&&m.player_name===myName;
     const t=new Date(m.created_at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/London'});
     if(isBot) return`<div style="text-align:center;margin:8px 0">
-      <div style="display:inline-block;background:rgba(245,197,24,.1);border:1px solid rgba(245,197,24,.2);border-radius:8px;padding:8px 14px;font-family:'Oswald',sans-serif;font-size:13px;color:#f5c518;line-height:1.5;max-width:90%;text-align:left;white-space:pre-line">${esc(m.message).replace(/\[ref:\d+\]/g,'')}</div>
+      <div style="display:inline-block;background:rgba(245,197,24,.1);border:1px solid rgba(245,197,24,.2);border-radius:8px;padding:8px 14px;font-family:'Oswald',sans-serif;font-size:13px;color:#f5c518;line-height:1.5;max-width:90%;text-align:left;white-space:pre-line">${esc(stripMatchTag(m.message))}</div>
       <div style="font-family:'Oswald',sans-serif;font-size:10px;color:var(--th-secondary);margin-top:2px">${t}</div>
     </div>`;
     return`<div style="display:flex;flex-direction:column;${mine?'align-items:flex-end':'align-items:flex-start'};margin-bottom:10px">
@@ -4018,7 +4018,7 @@ function renderChat(p){
     const active=S_chatConvo===c.key;
     const convMsgs=getConvoMessages(c.key,myName);
     const lastMsg=convMsgs[convMsgs.length-1];
-    const previewText=lastMsg?stripMatchTag(lastMsg.message).replace(/\[ref:\d+\]/g,''):'';
+    const previewText=lastMsg?stripMatchTag(lastMsg.message):'';
     const preview=previewText?previewText.substring(0,32)+(previewText.length>32?'..':''):'';
     return`<div onclick="S_chatConvo='${c.key}';clearUnread('${idKey}');document.getElementById('chat-area').innerHTML=buildChatArea();setTimeout(renderChatPanel,0);document.querySelectorAll('.convo-btn').forEach(b=>{b.classList.remove('on');b.style.background='transparent';});this.classList.add('on');this.style.background='rgba(245,197,24,.08)';" class="convo-btn ${active?'on':''}" style="display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--th-border-soft);background:${active?'rgba(245,197,24,.08)':unreads>0?'rgba(248,113,113,.08)':'transparent'};transition:background .15s">
       ${c.logo?`<div style="flex-shrink:0">${logoSVG(c.logo,28)}</div>`:`<span style="font-size:20px;flex-shrink:0">${c.icon}</span>`}
