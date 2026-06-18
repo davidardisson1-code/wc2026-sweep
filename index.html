@@ -120,7 +120,7 @@ select:focus{outline:none;border-color:#f5c518}
 </head>
 <body>
 <div class="site-header" onclick="if(S.phase==='setup'){S.onboardScreen='home';sv();render();}" style="cursor:pointer">
-  <div style="position:absolute;top:8px;right:12px;font-family:'Anton',Impact,sans-serif;font-size:12px;color:#f5c518;letter-spacing:2px;padding:4px 10px;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);border-radius:4px">🟣 PASSIONFRUIT · 14 JUN</div>
+  <div style="position:absolute;top:8px;right:12px;font-family:'Anton',Impact,sans-serif;font-size:12px;color:#f5c518;letter-spacing:2px;padding:4px 10px;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.35);border-radius:4px">🍓 STRAWBERRY · 14 JUN</div>
   <div class="site-logo">Official Sweepstake Edition</div>
   <div class="site-title">World Cup 2026</div>
 </div>
@@ -294,7 +294,8 @@ function init(){
   // RELIABILITY: re-sync data when user returns to the tab
   document.addEventListener('visibilitychange',()=>{
     if(document.visibilityState==='visible'&&sb){
-      Promise.all([syncMatches(),syncGoals(),loadPlayersFromSB()]).then(()=>{
+      Promise.all([syncMatches(),syncGoals(),loadPlayersFromSB(),loadRulesFromSB()]).then(()=>{
+        recalcPoints();
         setTimeout(showPendingResults,500);
         render();
       });
@@ -304,7 +305,7 @@ function init(){
   // RELIABILITY: re-sync on window focus too (some browsers don't fire visibilitychange reliably)
   window.addEventListener('focus',()=>{
     if(sb&&Date.now()-lastSyncAt>60000){
-      Promise.all([syncMatches(),syncGoals(),loadPlayersFromSB()]).then(()=>render());
+      Promise.all([syncMatches(),syncGoals(),loadPlayersFromSB(),loadRulesFromSB()]).then(()=>{recalcPoints();render();});
     }
   });
 }
@@ -371,7 +372,7 @@ function showPendingResults(){
   if(S.loggedIn==null||!S.players||!S.matches)return;
   const me=S.players[S.loggedIn];if(!me)return;
   // Gate: show What's New first if not yet seen by this player
-  const wnKey='wc26x_seenWhatsNew_v1';
+  const wnKey='wc26x_seenWhatsNew_v2';
   const wnSeen=JSON.parse(localStorage.getItem(wnKey)||'{}');
   if(!wnSeen[me.name]){
     showWhatsNew(()=>{
@@ -441,7 +442,7 @@ function showWhatsNew(onClose){
   o.innerHTML=`
     <div style="position:relative;background:var(--th-card);border:2px solid #f5c518;border-radius:14px;max-width:480px;width:100%;padding:24px;animation:resultPop .55s cubic-bezier(.34,1.56,.64,1) both;box-shadow:0 20px 60px rgba(0,0,0,.6);max-height:90vh;overflow-y:auto">
       <div style="text-align:center;margin-bottom:6px">
-        <div style="font-family:'Oswald',sans-serif;font-size:10px;color:#f5c518;letter-spacing:2.5px">🟣 PASSIONFRUIT · 14 JUN</div>
+        <div style="font-family:'Oswald',sans-serif;font-size:10px;color:#f5c518;letter-spacing:2.5px">🍓 STRAWBERRY · 14 JUN</div>
       </div>
       <div style="font-family:'Anton',Impact,sans-serif;font-size:28px;letter-spacing:2px;color:#f5c518;text-align:center;line-height:1;margin-bottom:6px">WHAT'S NEW</div>
       <div style="font-family:'Oswald',sans-serif;font-size:12px;color:var(--th-secondary);text-align:center;margin-bottom:14px">10 upgrades since the tournament kicked off</div>
@@ -1087,9 +1088,27 @@ function isAdmin(){
   return S.adminPin&&S.players[S.loggedIn]?.pin===S.adminPin;
 }
 function upPick(id,k,v){S.players=S.players.map(p=>p.id===id?{...p,picks:{...p.picks,[k]:v}}:p);sv();pushPlayerSB(id);}
-function upRule(k,v){const p=k.split('.');if(p.length===2)S.rules[p[0]][p[1]]=+v||0;else S.rules[k]=isNaN(+v)?v:+v||0;}
-function addRule(){const el=document.getElementById('cri');if(!el?.value.trim())return;S.rules.custom=[...S.rules.custom,{id:Date.now(),t:el.value.trim(),d:new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short'})}];el.value='';sv();render();}
-function delRule(id){if(!confirm('Remove this rule?'))return;S.rules.custom=S.rules.custom.filter(r=>r.id!==id);sv();render();}
+function upRule(k,v){const p=k.split('.');if(p.length===2)S.rules[p[0]][p[1]]=+v||0;else S.rules[k]=isNaN(+v)?v:+v||0;sv();recalcPoints();render();pushRulesToSB();}
+function addRule(){const el=document.getElementById('cri');if(!el?.value.trim())return;S.rules.custom=[...S.rules.custom,{id:Date.now(),t:el.value.trim(),d:new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short'})}];el.value='';sv();render();pushRulesToSB();}
+function delRule(id){if(!confirm('Remove this rule?'))return;S.rules.custom=S.rules.custom.filter(r=>r.id!==id);sv();render();pushRulesToSB();}
+async function pushRulesToSB(){
+  if(!sb)return;
+  try{
+    await sb.from('settings').upsert({key:'rules',value:JSON.stringify(S.rules)},{onConflict:'key'});
+  }catch(e){console.warn('pushRulesToSB failed',e);}
+}
+async function loadRulesFromSB(){
+  if(!sb)return;
+  try{
+    const{data}=await sb.from('settings').select('value').eq('key','rules').maybeSingle();
+    if(data?.value){
+      const remote=JSON.parse(data.value);
+      // Merge: take remote values but keep local defaults for any missing keys
+      S.rules={...S.rules,...remote};
+      sv();
+    }
+  }catch(e){console.warn('loadRulesFromSB failed',e);}
+}
 function saveRules(){sv();const b=document.getElementById('srb');if(b){b.textContent='SAVED ✓';b.style.background='linear-gradient(180deg,#4ade80,#16a34a 60%,#15803d)';setTimeout(()=>{if(b){b.textContent='Save Rules';b.style.background='';}},1800);}}
 
 // ===== KIT / LOGO UPDATE =====
@@ -1296,6 +1315,8 @@ async function initSupabase(){
     await syncGoals();
     // Always try to load players — handles new devices where phase='setup' but draw is done
     await loadPlayersFromSB();
+    await loadRulesFromSB();
+    recalcPoints();
     if(S.phase==='done'){
       await loadPredictionsFromSB();
     }
@@ -1628,7 +1649,7 @@ async function loadPredictionsFromSB(){
 function forceSync(){
   if(!sb){alert('Supabase not connected.');return;}
   const btn=event?.target;if(btn){btn.disabled=true;btn.textContent='⏳ Syncing...';}
-  Promise.all([syncMatches(),syncGoals(),loadPlayersFromSB()]).then(()=>{
+  Promise.all([syncMatches(),syncGoals(),loadPlayersFromSB(),loadRulesFromSB()]).then(()=>{
     recalcPoints();sv();render();
     if(btn){btn.disabled=false;btn.textContent='✓ Synced';setTimeout(()=>{btn.textContent='🔄 Force Sync All';},1500);}
   }).catch(e=>{
