@@ -294,14 +294,17 @@ function init(){
   // RELIABILITY: re-sync data when user returns to the tab
   document.addEventListener('visibilitychange',()=>{
     if(document.visibilityState==='visible'&&sb){
-      syncMatches().then(()=>{syncGoals();setTimeout(showPendingResults,500);});
+      Promise.all([syncMatches(),syncGoals(),loadPlayersFromSB()]).then(()=>{
+        setTimeout(showPendingResults,500);
+        render();
+      });
       showPreMatchAlertIfNeeded();
     }
   });
   // RELIABILITY: re-sync on window focus too (some browsers don't fire visibilitychange reliably)
   window.addEventListener('focus',()=>{
     if(sb&&Date.now()-lastSyncAt>60000){
-      syncMatches().then(()=>syncGoals());
+      Promise.all([syncMatches(),syncGoals(),loadPlayersFromSB()]).then(()=>render());
     }
   });
 }
